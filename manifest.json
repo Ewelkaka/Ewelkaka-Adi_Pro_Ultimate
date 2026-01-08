@@ -1,0 +1,23 @@
+
+{
+  "name": "Adi Pro AI",
+  "short_name": "Adi Pro",
+  "description": "Zaawansowany asystent AI z wideo Veo i generowaniem obrazów.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3498db",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1698/1698535.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1698/1698535.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

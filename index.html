@@ -1,0 +1,185 @@
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#3498db">
+    <title>Adi Pro - Ultimate AI by Ewelina Lesiak</title>
+    <link rel="stylesheet" href="index.css">
+    <script type="importmap">
+      {
+        "imports": {
+          "@google/genai": "https://esm.sh/@google/genai@^0.12.0",
+          "marked": "https://esm.sh/marked@^4.0.0"
+        }
+      }
+    </script>
+</head>
+<body class="theme-jasny">
+    <div id="toast-container"></div>
+    <div class="parallax-stars"></div>
+
+    <!-- Live API Overlay -->
+    <div id="live-overlay" class="hidden">
+        <div class="live-content">
+            <div class="live-pulse"></div>
+            <div class="live-status">Rozmowa na żywo...</div>
+            <div id="live-transcription">Słucham Cię...</div>
+            <button id="stop-live-btn">Zakończ</button>
+        </div>
+    </div>
+
+    <!-- User Profile Modal -->
+    <div id="profile-modal-overlay" class="hidden modal-overlay">
+        <div id="profile-modal" class="modal-content">
+            <div class="modal-header">
+                <h2>Twój Profil</h2>
+                <button id="close-profile-btn-top" class="close-btn">✕</button>
+            </div>
+            <div class="profile-scroll-area">
+                <div class="profile-field">
+                    <label for="profile-name-input">Twoje Imię</label>
+                    <input type="text" id="profile-name-input" placeholder="Jak mamy Cię nazywać?">
+                </div>
+                <div class="profile-field">
+                    <label>Wybierz Awatar</label>
+                    <div id="avatar-grid">
+                        <!-- Wypełniane przez JS -->
+                    </div>
+                </div>
+                <div class="profile-field">
+                    <label for="profile-color-input">Kolor Twoich wiadomości</label>
+                    <input type="color" id="profile-color-input">
+                </div>
+            </div>
+            <div class="profile-actions">
+                <button id="save-profile-btn" class="action-btn-primary">Zapisz Zmiany</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal-overlay" class="hidden modal-overlay">
+        <div id="settings-modal" class="modal-content">
+            <div class="modal-header">
+                <h2>Ustawienia Systemowe</h2>
+                <button id="close-settings-btn-top" class="close-btn">✕</button>
+            </div>
+            <div class="settings-scroll-area">
+                <section class="settings-section">
+                    <h3><span class="icon">👑</span> Autorka Projektu</h3>
+                    <div class="creator-card">
+                        <div class="creator-avatar">EL</div>
+                        <div class="creator-info">
+                            <p class="creator-name">Ewelina Lesiak</p>
+                            <p class="creator-role">Lead Developer & Designer</p>
+                        </div>
+                    </div>
+                </section>
+                <section class="settings-section">
+                    <h3><span class="icon">🛡️</span> Bezpieczeństwo i API</h3>
+                    <p>Dla modeli Pro i Veo wymagany jest płatny klucz API ze wskazaniem projektu.</p>
+                    <div class="api-management-box">
+                        <button id="manage-api-key-btn" class="action-btn-primary">🔑 Zarządzaj Kluczem API (Paid)</button>
+                        <p class="billing-info"><a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank">Dokumentacja płatności API</a></p>
+                    </div>
+                </section>
+                <section class="settings-section">
+                    <h3><span class="icon">📂</span> Dane i Pamięć</h3>
+                    <p>Twoja historia rozmów jest zapisywana lokalnie w przeglądarce.</p>
+                    <button id="clear-history-btn" class="secondary" style="border-color: #e74c3c; color: #e74c3c;">🗑️ Wyczyść historię czatu</button>
+                </section>
+            </div>
+            <div class="profile-actions">
+                <button id="close-settings-btn" class="secondary">Zamknij</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="chat-container">
+        <div id="chat-header">
+            <div class="header-left">
+                <div class="logo-wrapper">
+                    <h1>Adi Pro <span class="ai-badge">Ultimate v2</span></h1>
+                    <p class="creator-tagline">Created by Ewelina Lesiak</p>
+                </div>
+            </div>
+            <div class="header-controls">
+                <button id="profile-btn" title="Twój Profil">👤</button>
+                <button id="transcribe-btn" title="Transkrypcja audio">🎙️</button>
+                <button id="live-mic-btn" title="Rozmowa Live">🎤</button>
+                <button id="settings-btn" title="Ustawienia">⚙️</button>
+                <div id="theme-selector">
+                    <button id="theme-button" title="Motyw">🎨</button>
+                    <div id="theme-menu" class="hidden">
+                        <div class="theme-option" data-theme="jasny">Jasny</div>
+                        <div class="theme-option" data-theme="ciemny">Ciemny</div>
+                        <div class="theme-option" data-theme="kosmos">Kosmos</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="smart-tools-bar">
+            <button id="search-toggle" class="tool-toggle" title="Użyj Google Search">🔍 Search</button>
+            <button id="maps-toggle" class="tool-toggle" title="Użyj Google Maps">📍 Maps</button>
+            <button onclick="window.analyzeContent('summarize')">📝 Podsumuj</button>
+            <button id="tts-global-toggle">🔊 Czytaj</button>
+        </div>
+
+        <div id="messages-wrapper">
+            <div id="messages"></div>
+        </div>
+
+        <div id="attachment-preview" class="hidden">
+            <div id="preview-content"></div>
+            <button id="remove-attachment">✕</button>
+        </div>
+
+        <div id="media-bar">
+            <div class="media-group toggles">
+                <button id="think-toggle" class="mode-toggle" title="Model 3 Pro Deep Thinking">🧠 Think</button>
+                <button id="video-toggle" class="mode-toggle" title="Tryb Video Veo 3.1">🎬 Video</button>
+            </div>
+            <div class="media-group selectors">
+                <select id="img-size" title="Rozmiar obrazu">
+                    <option value="1K">1K</option>
+                    <option value="2K" selected>2K</option>
+                    <option value="4K">4K</option>
+                </select>
+                <select id="img-aspect" title="Proporcje">
+                    <option value="1:1" selected>1:1</option>
+                    <option value="2:3">2:3</option>
+                    <option value="3:2">3:2</option>
+                    <option value="3:4">3:4</option>
+                    <option value="4:3">4:3</option>
+                    <option value="9:16">9:16</option>
+                    <option value="16:9">16:9</option>
+                    <option value="21:9">21:9</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="input-area">
+            <input type="file" id="media-input-hidden" accept="image/jpeg,image/png,image/webp,video/mp4,audio/*" style="display: none;">
+            <div id="emoji-picker-container" class="hidden">
+                <div id="emoji-picker"></div>
+            </div>
+            <button id="emoji-button" title="Emoji">😊</button>
+            <button id="attach-button">📎</button>
+            <div class="input-wrapper">
+                <input type="text" id="message-input" placeholder="Wpisz polecenie, generuj obraz/video lub edytuj zdjęcie...">
+            </div>
+            <button id="send-button">🚀</button>
+        </div>
+    </div>
+
+    <script type="module" src="index.tsx"></script>
+    <script>
+        window.analyzeContent = (action) => {
+           window.dispatchEvent(new CustomEvent('smartAction', { detail: { action } }));
+        };
+    </script>
+</body>
+</html>
