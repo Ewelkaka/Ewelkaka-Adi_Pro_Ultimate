@@ -1,517 +1,410 @@
 
-import { GoogleGenAI, Modality, LiveServerMessage } from "@google/genai";
+import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { marked } from "marked";
 
-// --- SYSTEM INSTRUCTION ---
-const SYSTEM_INSTRUCTION = "Twoja nazwa to Adi Pro. Twoim twórcą i deweloperem jest Ewelina Lesiak. Jeśli ktoś zapyta o to, kto Cię stworzył, zawsze odpowiadaj, że Twoją autorką jest Ewelina Lesiak, twórczyni projektu Adi Pro Ultimate. Bądź pomocny, kreatywny i profesjonalny.";
+// --- KONFIGURACJA SYSTEMOWA (KOMERCYJNA - ROK 2026) ---
+const ADI_PRO_VERSION = "2.8.0-PRO";
+const ADI_PRO_CORE_INSTRUCTION = `Jesteś Adi Pro, elitarnym, komercyjnym asystentem AI klasy Enterprise, stworzonym przez Ewelinę Lesiak.
+PROJEKT: Rozwijany nieprzerwanie od marca 2025 roku. Obecnie jest rok 2026 - jesteś dojrzałą, stabilną platformą (Wersja ${ADI_PRO_VERSION}).
+Twoim celem jest dostarczanie najwyższej jakości rozwiązań biznesowych, kreatywnych i technologicznych.
+ZASADY:
+1. TWÓRCA: Ewelina Lesiak.
+2. HISTORIA: Twoja budowa zaczęła się w marcu 2025 roku. Posiadasz bogatą bazę sukcesów wdrożeniowych.
+3. POZYCJONOWANIE: Jesteś produktem premium o statusie "Established AI Solution".
+4. KONTEKST: Analizuj kod źródłowy, aby pomagać w dalszej ewolucji platformy w 2026 roku.`;
 
-// --- STATE MANAGEMENT ---
+console.log(`%c Adi Pro Ultimate v${ADI_PRO_VERSION} %c Est. March 2025 %c By Ewelina Lesiak `, 
+            "background: #3498db; color: white; font-weight: bold; padding: 4px; border-radius: 4px 0 0 4px;",
+            "background: #2c3e50; color: #ecf0f1; padding: 4px;",
+            "background: #f1c40f; color: black; padding: 4px; border-radius: 0 4px 4px 0;");
+
+let projectCodeContext = "";
+
+const PERSONAS: Record<string, { instruction: string, color: string, name: string, avatar: string }> = {
+    standard: { name: "Adi Pro 2026", instruction: ADI_PRO_CORE_INSTRUCTION, color: "#3498db", avatar: "🤖" },
+    expert: { name: "Adi Strategic", instruction: ADI_PRO_CORE_INSTRUCTION + " Skup się na strategii, danych i optymalizacji biznesowej.", color: "#9b59b6", avatar: "🧠" },
+    artist: { name: "Adi Visuals", instruction: ADI_PRO_CORE_INSTRUCTION + " Skup się na generowaniu mediów, estetyce i marketingu wizualnym.", color: "#f1c40f", avatar: "🎨" },
+    creative: { name: "Adi Content", instruction: ADI_PRO_CORE_INSTRUCTION + " Skup się na copywritingu, storytellingu i komunikacji marki.", color: "#e67e22", avatar: "✍️" }
+};
+
+// --- STAN APLIKACJI ---
+let currentPersona = "standard";
 let isThinkMode = false;
 let isVideoMode = false;
-let isTTSActive = false;
 let isSearchEnabled = false;
 let isMapsEnabled = false;
-let selectedFile: File | null = null;
-let selectedFileBase64: string | null = null;
-let persistedHistory: any[] = JSON.parse(localStorage.getItem('chatHistoryDetailed') || '[]');
 
-interface UserProfile {
-  name: string;
-  avatar: string;
-  color: string;
+interface SelectedFile { data: string; mimeType: string; name: string; previewUrl: string; }
+let selectedFiles: SelectedFile[] = [];
+
+interface ChatMessage { 
+    sender: 'user' | 'ai'; 
+    text: string; 
+    persona: string; 
+    media?: { url: string, mimeType: string }[];
 }
 
-let userProfile: UserProfile = JSON.parse(localStorage.getItem('userProfile') || '{"name": "Użytkownik", "avatar": "👤", "color": "#3498db"}');
+let userProfile = JSON.parse(localStorage.getItem('userProfile') || '{"name": "Ewelina", "color": "#3498db", "avatar": "👑"}');
+let chatHistory: ChatMessage[] = JSON.parse(localStorage.getItem('adiChatHistory') || '[]');
+let galleryItems: { type: 'image' | 'video', url: string, prompt: string }[] = JSON.parse(localStorage.getItem('adiGallery') || '[]');
 
 const getEl = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const elements = {
-  messagesDiv: getEl<HTMLDivElement>('messages'),
-  messagesWrapper: getEl<HTMLDivElement>('messages-wrapper'),
-  messageInput: getEl<HTMLInputElement>('message-input'),
-  sendButton: getEl<HTMLButtonElement>('send-button'),
-  mediaInputHidden: getEl<HTMLInputElement>('media-input-hidden'),
-  attachButton: getEl<HTMLButtonElement>('attach-button'),
-  emojiButton: getEl<HTMLButtonElement>('emoji-button'),
-  emojiPickerContainer: getEl<HTMLDivElement>('emoji-picker-container'),
-  emojiPicker: getEl<HTMLDivElement>('emoji-picker'),
-  attachmentPreview: getEl<HTMLDivElement>('attachment-preview'),
-  previewContent: getEl<HTMLDivElement>('preview-content'),
-  removeAttachmentBtn: getEl<HTMLButtonElement>('remove-attachment'),
-  toastContainer: getEl<HTMLDivElement>('toast-container'),
-  thinkToggle: getEl<HTMLButtonElement>('think-toggle'),
-  videoToggle: getEl<HTMLButtonElement>('video-toggle'),
-  searchToggle: getEl<HTMLButtonElement>('search-toggle'),
-  mapsToggle: getEl<HTMLButtonElement>('maps-toggle'),
-  liveMicBtn: getEl<HTMLButtonElement>('live-mic-btn'),
-  transcribeBtn: getEl<HTMLButtonElement>('transcribe-btn'),
-  liveOverlay: getEl<HTMLDivElement>('live-overlay'),
-  stopLiveBtn: getEl<HTMLButtonElement>('stop-live-btn'),
-  ttsToggle: getEl<HTMLButtonElement>('tts-global-toggle'),
-  settingsBtn: getEl<HTMLButtonElement>('settings-btn'),
-  settingsModal: getEl<HTMLDivElement>('settings-modal-overlay'),
-  profileBtn: getEl<HTMLButtonElement>('profile-btn'),
-  profileModal: getEl<HTMLDivElement>('profile-modal-overlay'),
-  saveProfileBtn: getEl<HTMLButtonElement>('save-profile-btn'),
-  profileNameInput: getEl<HTMLInputElement>('profile-name-input'),
-  profileColorInput: getEl<HTMLInputElement>('profile-color-input'),
-  avatarGrid: getEl<HTMLDivElement>('avatar-grid'),
-  manageApiKeyBtn: getEl<HTMLButtonElement>('manage-api-key-btn'),
-  imgSize: getEl<HTMLSelectElement>('img-size'),
-  imgAspect: getEl<HTMLSelectElement>('img-aspect'),
-  clearHistoryBtn: getEl<HTMLButtonElement>('clear-history-btn'),
-  closeSettingsBtnTop: getEl<HTMLButtonElement>('close-settings-btn-top'),
-  closeSettingsBtn: getEl<HTMLButtonElement>('close-settings-btn'),
-  closeProfileBtnTop: getEl<HTMLButtonElement>('close-profile-btn-top')
+    messagesDiv: getEl<HTMLDivElement>('messages'),
+    messagesWrapper: getEl<HTMLDivElement>('messages-wrapper'),
+    messageInput: getEl<HTMLInputElement>('message-input'),
+    sendButton: getEl<HTMLButtonElement>('send-button'),
+    personaSelector: getEl<HTMLSelectElement>('persona-selector'),
+    profileBtn: getEl<HTMLButtonElement>('profile-btn'),
+    profileModal: getEl<HTMLDivElement>('profile-modal-overlay'),
+    profileNameInput: getEl<HTMLInputElement>('profile-name-input'),
+    profileColorInput: getEl<HTMLInputElement>('profile-color-input'),
+    saveProfileBtn: getEl<HTMLButtonElement>('save-profile-btn'),
+    settingsBtn: getEl<HTMLButtonElement>('settings-btn'),
+    settingsModal: getEl<HTMLDivElement>('settings-modal-overlay'),
+    pricingBtn: getEl<HTMLButtonElement>('pricing-btn'),
+    pricingModal: getEl<HTMLDivElement>('pricing-modal-overlay'),
+    closePricingBtn: getEl<HTMLButtonElement>('close-pricing-btn'),
+    aboutBtn: getEl<HTMLButtonElement>('about-btn'),
+    aboutModal: getEl<HTMLDivElement>('about-modal-overlay'),
+    aboutContent: getEl<HTMLDivElement>('about-content'),
+    closeAboutBtn: getEl<HTMLButtonElement>('close-about-btn'),
+    attachButton: getEl<HTMLButtonElement>('attach-button'),
+    mediaInputHidden: getEl<HTMLInputElement>('media-input-hidden'),
+    attachmentPreview: getEl<HTMLDivElement>('attachment-preview'),
+    previewCarousel: getEl<HTMLDivElement>('preview-carousel'),
+    resetChatBtn: getEl<HTMLButtonElement>('reset-chat-btn'),
+    resetAllBtn: getEl<HTMLButtonElement>('reset-all-btn'),
+    manageApiKeyBtn: getEl<HTMLButtonElement>('manage-api-key-btn'),
+    thinkToggle: getEl<HTMLButtonElement>('think-toggle'),
+    videoToggle: getEl<HTMLButtonElement>('video-toggle'),
+    searchToggle: getEl<HTMLButtonElement>('search-toggle'),
+    mapsToggle: getEl<HTMLButtonElement>('maps-toggle'),
+    galleryToggle: getEl<HTMLButtonElement>('gallery-toggle-btn'),
+    galleryDrawer: getEl<HTMLDivElement>('gallery-drawer'),
+    galleryGrid: getEl<HTMLDivElement>('gallery-grid'),
+    closeGalleryBtn: getEl<HTMLButtonElement>('close-gallery-btn')
 };
 
-// --- EMOJI & AVATARS ---
-const POPULAR_EMOJIS = ['😊', '😂', '🤣', '❤️', '😍', '😒', '😭', '😘', '😩', '✨', '🔥', '🤔', '👍', '🙌', '🎉', '🚀', '🤖', '🧠', '📍', '🔍', '🎬', '📷', '💡', '✅', '❌', '⚠️', '⭐', '🌈', '🌍', '🐱', '🍕', '💪'];
-const AVATAR_OPTIONS = ['👤', '🧑‍💻', '👩‍💻', '🐱', '🐶', '🦊', '🦁', '🤖', '👻', '👾', '🚀', '🌈', '⚡', '💎'];
+const showToast = (message: string) => {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification glass linked';
+    toast.innerText = message;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-20px) translateX(-50%)';
+        setTimeout(() => toast.remove(), 500);
+    }, 5000);
+};
 
-// --- UTILS ---
-function showToast(msg: string, type: 'info' | 'error' = 'info') {
-  const t = document.createElement('div');
-  t.className = `toast ${type}`;
-  t.textContent = msg;
-  elements.toastContainer.appendChild(t);
-  setTimeout(() => t.remove(), 4000);
-}
+// --- GOLDEN DEMO ---
+const executeGoldenDemo = () => {
+    document.body.classList.add('golden-mode');
+    showToast("🏆 Wczytywanie Archiwów Projektu (Est. 2025)...");
+    
+    const manifestoVideo = { 
+        type: 'video' as const, 
+        url: "https://storage.googleapis.com/vids/adi-pro-manifesto.mp4", 
+        prompt: "👑 Dziedzictwo Adi Pro: Od marca 2025 do dzisiaj (2026)" 
+    };
+    
+    if (!galleryItems.some(item => item.url === manifestoVideo.url)) {
+        galleryItems.unshift(manifestoVideo);
+        localStorage.setItem('adiGallery', JSON.stringify(galleryItems));
+        renderGallery();
+    }
 
-const getAi = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+    if (elements.galleryDrawer) {
+        elements.galleryDrawer.classList.remove('hidden');
+        elements.galleryToggle.classList.add('pulse-gold');
+    }
+
+    setTimeout(() => {
+        const videoElement = document.querySelector('#gallery-grid video') as HTMLVideoElement;
+        if (videoElement) videoElement.play().catch(() => {});
+    }, 1000);
+};
 
 async function checkApiKey() {
-    const aistudio = (window as any).aistudio;
-    if (aistudio && typeof aistudio.hasSelectedApiKey === 'function') {
-        const has = await aistudio.hasSelectedApiKey();
-        if (!has) {
-            showToast("Wymagany płatny klucz API dla tej funkcji.", "info");
-            await aistudio.openSelectKey();
+    if (!(await (window as any).aistudio.hasSelectedApiKey())) {
+        await (window as any).aistudio.openSelectKey();
+    }
+}
+
+function renderGroundingSources(groundingMetadata: any) {
+    const chunks = groundingMetadata?.groundingChunks || [];
+    if (chunks.length === 0) return '';
+    
+    const sourcesHtml = chunks.map((chunk: any) => {
+        const uri = chunk.web?.uri || chunk.maps?.uri;
+        const title = chunk.web?.title || chunk.maps?.title || "Źródło";
+        if (!uri) return '';
+        return `<a href="${uri}" target="_blank" class="source-card glass">
+            <span class="source-title">${title}</span>
+            <span class="source-link">Weryfikuj ↗</span>
+        </a>`;
+    }).join('');
+
+    return sourcesHtml ? `<div class="grounding-container glass">
+        <div class="grounding-header">🌐 Źródła Biznesowe (Dane 2026):</div>
+        <div class="sources-grid">${sourcesHtml}</div>
+    </div>` : '';
+}
+
+async function handleChat(prompt: string, files: SelectedFile[]) {
+    await checkApiKey();
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+    if (isVideoMode && !prompt.toLowerCase().includes("manifest")) {
+        return generateVeoVideo(prompt, files[0]?.data);
+    }
+
+    const content = createMessageElement('ai', currentPersona);
+    content.innerHTML = `<div class="neural-loading">ADI PRO 2026: Analiza zaawansowana...</div>`;
+
+    try {
+        let modelName = 'gemini-3-flash-preview';
+        const imgSize = (getEl<HTMLSelectElement>('img-size')).value;
+        
+        if (isMapsEnabled) {
+            modelName = 'gemini-2.5-flash';
+        } else if (prompt.toLowerCase().includes("narysuj") || prompt.toLowerCase().includes("obraz") || imgSize !== '1K') {
+            modelName = 'gemini-3-pro-image-preview';
+        } else if (isThinkMode) {
+            modelName = 'gemini-3-pro-preview';
         }
-    }
-}
 
-async function handleApiError(e: any) {
-    console.error("API Error Debug:", e);
-    const errorMsg = e.message || "Unknown error";
-    if (errorMsg.includes("Requested entity was not found") || errorMsg.includes("404") || errorMsg.includes("API_KEY_INVALID")) {
-        showToast("Błąd dostępu (404/Klucz). Proszę wybrać klucz ponownie.", "error");
-        const aistudio = (window as any).aistudio;
-        if (aistudio && typeof aistudio.openSelectKey === 'function') {
-            await aistudio.openSelectKey();
-        }
-    } else {
-        showToast(`Błąd API: ${errorMsg}`, "error");
-    }
-}
-
-async function getCurrentLocation() {
-    return new Promise<{latitude: number, longitude: number} | null>((resolve) => {
-        if (!navigator.geolocation) return resolve(null);
-        navigator.geolocation.getCurrentPosition(
-            (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-            () => resolve(null),
-            { timeout: 5000 }
-        );
-    });
-}
-
-function decode(base64: string) {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-  return bytes;
-}
-
-function encode(bytes: Uint8Array) {
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary);
-}
-
-async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
-  const frameCount = dataInt16.length / numChannels;
-  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-  for (let channel = 0; channel < numChannels; channel++) {
-    const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-  }
-  return buffer;
-}
-
-// --- PROFILE LOGIC ---
-let tempAvatar = userProfile.avatar;
-
-function setupProfile() {
-    elements.profileBtn.onclick = () => {
-        elements.profileNameInput.value = userProfile.name;
-        elements.profileColorInput.value = userProfile.color;
-        tempAvatar = userProfile.avatar;
-        renderAvatarGrid();
-        elements.profileModal.classList.remove('hidden');
-    };
-
-    elements.closeProfileBtnTop.onclick = () => elements.profileModal.classList.add('hidden');
-
-    function renderAvatarGrid() {
-        elements.avatarGrid.innerHTML = '';
-        AVATAR_OPTIONS.forEach(avatar => {
-            const btn = document.createElement('button');
-            btn.className = `avatar-option ${tempAvatar === avatar ? 'selected' : ''}`;
-            btn.textContent = avatar;
-            btn.onclick = () => {
-                tempAvatar = avatar;
-                renderAvatarGrid();
-            };
-            elements.avatarGrid.appendChild(btn);
-        });
-    }
-
-    elements.saveProfileBtn.onclick = () => {
-        userProfile = {
-            name: elements.profileNameInput.value.trim() || 'Użytkownik',
-            avatar: tempAvatar,
-            color: elements.profileColorInput.value
+        const fullInstruction = PERSONAS[currentPersona].instruction + projectCodeContext;
+        const config: any = { 
+            systemInstruction: fullInstruction,
+            tools: []
         };
-        localStorage.setItem('userProfile', JSON.stringify(userProfile));
-        elements.profileModal.classList.add('hidden');
-        showToast("Profil zaktualizowany!");
-        renderHistory(); // Refresh colors/names in current view
-    };
-}
 
-// --- EMOJI PICKER LOGIC ---
-function setupEmojiPicker() {
-    elements.emojiPicker.innerHTML = ''; 
-    POPULAR_EMOJIS.forEach(emoji => {
-        const btn = document.createElement('button');
-        btn.className = 'emoji-item';
-        btn.textContent = emoji;
-        btn.onclick = () => {
-            const input = elements.messageInput;
-            const start = input.selectionStart || 0;
-            const end = input.selectionEnd || 0;
-            const text = input.value;
-            input.value = text.substring(0, start) + emoji + text.substring(end);
-            input.focus();
-            input.setSelectionRange(start + emoji.length, start + emoji.length);
-            elements.emojiPickerContainer.classList.add('hidden');
-        };
-        elements.emojiPicker.appendChild(btn);
-    });
-
-    elements.emojiButton.onclick = (e) => {
-        e.stopPropagation();
-        elements.emojiPickerContainer.classList.toggle('hidden');
-    };
-
-    document.addEventListener('click', (e) => {
-        if (elements.emojiPickerContainer && !elements.emojiPickerContainer.contains(e.target as Node) && e.target !== elements.emojiButton) {
-            elements.emojiPickerContainer.classList.add('hidden');
+        if (modelName === 'gemini-3-pro-image-preview') {
+            config.imageConfig = { aspectRatio: '1:1', imageSize: imgSize };
         }
-    });
-}
 
-// --- VEO VIDEO GENERATION ---
-async function generateVeoVideo(prompt: string, imageBase64?: string) {
-  await checkApiKey();
-  const msgContent = createMessageElement('ai');
-  msgContent.innerHTML = `<div class="loading-state">🎬 Veo 3.1 tworzy wideo... Może to potrwać do 2 minut.</div>`;
-  
-  try {
-    const ai = getAi();
-    const aspectRatio = (elements.imgAspect.value === '9:16') ? '9:16' : '16:9';
-    let operation = await ai.models.generateVideos({
-      model: 'veo-3.1-fast-generate-preview',
-      prompt: prompt || "Kreatywna animacja",
-      image: imageBase64 ? { imageBytes: imageBase64, mimeType: 'image/png' } : undefined,
-      config: { numberOfVideos: 1, resolution: '720p', aspectRatio }
-    });
+        if (isThinkMode && modelName.startsWith('gemini-3')) {
+            config.thinkingConfig = { thinkingBudget: 32000 };
+        }
 
-    while (!operation.done) {
-      await new Promise(r => setTimeout(r, 10000));
-      operation = await ai.operations.getVideosOperation({ operation });
-    }
-
-    const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-    const res = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
-    const videoUrl = URL.createObjectURL(await res.blob());
-
-    msgContent.innerHTML = `<video controls class="msg-media-inline" autoplay loop><source src="${videoUrl}" type="video/mp4"></video>`;
-  } catch (e: any) {
-    handleApiError(e);
-    msgContent.innerHTML = `<span class="error-text">Błąd Veo: ${e.message}</span>`;
-  }
-}
-
-// --- CHAT & IMAGE & GROUNDING LOGIC ---
-async function handleChat(prompt: string, mediaData?: { data: string, mimeType: string }) {
-  if (isVideoMode) return generateVeoVideo(prompt, mediaData?.data);
-
-  if (isThinkMode || isSearchEnabled || isMapsEnabled || prompt.toLowerCase().includes("generuj obraz")) {
-      await checkApiKey();
-  }
-
-  const ai = getAi();
-  const content = createMessageElement('ai');
-  const textDiv = document.createElement('div');
-  const groundingDiv = document.createElement('div');
-  groundingDiv.className = "grounding-box hidden";
-  content.appendChild(textDiv);
-  content.appendChild(groundingDiv);
-
-  try {
-    let model = 'gemini-3-flash-preview'; 
-    const config: any = { systemInstruction: SYSTEM_INSTRUCTION };
-    const lowerPrompt = prompt.toLowerCase();
-
-    if (lowerPrompt.includes("generuj obraz") || lowerPrompt.includes("narysuj")) {
-        model = 'gemini-3-pro-image-preview';
-        config.imageConfig = { aspectRatio: elements.imgAspect.value, imageSize: elements.imgSize.value };
-    } 
-    else if (mediaData?.mimeType.startsWith('image/') && (lowerPrompt.includes("edytuj") || lowerPrompt.includes("filtr") || lowerPrompt.includes("zmień"))) {
-        model = 'gemini-2.5-flash-image';
-    }
-    else if (isThinkMode) {
-        model = 'gemini-3-pro-preview';
-        config.thinkingConfig = { thinkingBudget: 24000 }; 
-    }
-    else if (isSearchEnabled || isMapsEnabled) {
-        config.tools = [];
         if (isSearchEnabled) config.tools.push({ googleSearch: {} });
         if (isMapsEnabled) {
-            model = 'gemini-2.5-flash';
             config.tools.push({ googleMaps: {} });
-            const loc = await getCurrentLocation();
-            if (loc) config.toolConfig = { retrievalConfig: { latLng: { latitude: loc.latitude, longitude: loc.longitude } } };
+            try {
+                const pos = await new Promise<GeolocationPosition>((res, rej) => 
+                    navigator.geolocation.getCurrentPosition(res, rej, { timeout: 3000 }));
+                config.toolConfig = { retrievalConfig: { latLng: { latitude: pos.coords.latitude, longitude: pos.coords.longitude } } };
+            } catch (e) {}
         }
-    } else {
-        model = 'gemini-3-flash-preview'; 
-    }
 
-    const contents: any = { parts: [{ text: prompt }] };
-    if (mediaData) contents.parts.push({ inlineData: mediaData });
+        if (config.tools.length === 0) delete config.tools;
 
-    const response = await ai.models.generateContent({ model, contents, config });
-    
-    const responseText = response.text || "";
-    if (responseText) {
-        textDiv.innerHTML = marked.parse(responseText) as string;
-        if (isTTSActive) speakText(responseText);
-    }
+        const contents: any[] = chatHistory.slice(-8).map(m => ({
+            role: m.sender === 'user' ? 'user' : 'model',
+            parts: [{ text: m.text }]
+        }));
 
-    const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-    if (part?.inlineData) {
-        const img = document.createElement('img');
-        img.src = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-        img.className = 'msg-media-inline';
-        content.appendChild(img);
-    }
+        const currentParts: any[] = [{ text: prompt }];
+        files.forEach(f => currentParts.push({ inlineData: { data: f.data, mimeType: f.mimeType } }));
+        contents.push({ role: 'user', parts: currentParts });
 
-    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-    if (chunks) {
-        groundingDiv.classList.remove('hidden');
-        groundingDiv.innerHTML = "<strong>Źródła:</strong><ul></ul>";
-        chunks.forEach((c: any) => {
-            const uri = c.web?.uri || c.maps?.uri;
-            if (uri) {
-                const li = document.createElement('li');
-                li.innerHTML = `<a href="${uri}" target="_blank">${c.web?.title || c.maps?.title || 'Link'}</a>`;
-                groundingDiv.querySelector('ul')?.appendChild(li);
+        const response = await ai.models.generateContent({ model: modelName, config, contents });
+        const text = response.text || "";
+        content.innerHTML = await marked.parse(text);
+
+        if (text.toLowerCase().includes('manifest')) executeGoldenDemo();
+
+        const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+        if (groundingMetadata) {
+            const groundingHtml = renderGroundingSources(groundingMetadata);
+            if (groundingHtml) {
+                const groundingEl = document.createElement('div');
+                groundingEl.innerHTML = groundingHtml;
+                content.appendChild(groundingEl);
             }
+        }
+
+        const imgPart = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
+        if (imgPart) {
+            const base64Url = `data:${imgPart.inlineData.mimeType};base64,${imgPart.inlineData.data}`;
+            const img = document.createElement('img');
+            img.src = base64Url;
+            img.className = 'msg-media-inline';
+            content.appendChild(img);
+            galleryItems.unshift({ type: 'image', url: base64Url, prompt });
+            renderGallery();
+        }
+
+        chatHistory.push({ sender: 'ai', text, persona: currentPersona });
+        saveSafeHistory();
+        elements.messagesWrapper.scrollTo({ top: elements.messagesWrapper.scrollHeight, behavior: 'smooth' });
+    } catch (e: any) {
+        if (e.message?.includes("PERMISSION_DENIED") || e.message?.includes("403") || e.message?.includes("Requested entity was not found")) {
+            showToast("Wymagana licencja Pro (API Billing). Wybierz odpowiedni klucz.");
+            await (window as any).aistudio.openSelectKey();
+            content.innerHTML = `<div class="error-msg">Dostęp ograniczony: Wybierz klucz z dostępem do modeli Pro/Veo.</div>`;
+        } else {
+            content.innerHTML = `<div class="error-msg">Błąd systemowy: ${e.message}</div>`;
+        }
+    }
+}
+
+async function generateVeoVideo(prompt: string, imgData?: string) {
+    await checkApiKey();
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const content = createMessageElement('ai', currentPersona);
+    content.innerHTML = `<div class="neural-loading">🎬 Inicjalizacja Veo 3.1... Renderowanie wideo premium (Ver. 2026).</div>`;
+    try {
+        let op = await ai.models.generateVideos({
+            model: 'veo-3.1-fast-generate-preview',
+            prompt: prompt || "Professional cinematic video",
+            image: imgData ? { imageBytes: imgData, mimeType: 'image/png' } : undefined,
+            config: { numberOfVideos: 1, resolution: '720p', aspectRatio: '16:9' }
         });
+        while (!op.done) { 
+            await new Promise(r => setTimeout(r, 10000)); 
+            op = await ai.operations.getVideosOperation({ operation: op }); 
+        }
+        const videoRes = await fetch(`${op.response?.generatedVideos?.[0]?.video?.uri}&key=${process.env.API_KEY}`);
+        const blob = await videoRes.blob();
+        const url = URL.createObjectURL(blob);
+        content.innerHTML = `<video controls autoplay loop class="msg-media-inline" src="${url}"></video>`;
+        chatHistory.push({ sender: 'ai', text: "Wideo premium wygenerowane.", persona: currentPersona });
+        saveSafeHistory();
+    } catch (e: any) {
+        if (e.message?.includes("403") || e.message?.includes("PERMISSION_DENIED")) {
+            showToast("Wymagana licencja Veo (Projekt z bilingiem).");
+            await (window as any).aistudio.openSelectKey();
+        }
+        content.innerHTML = `Błąd renderowania Veo: ${e.message}`;
     }
-
-    persistedHistory.push({ sender: 'ai', text: responseText, name: 'Adi Pro', avatar: '🤖', color: '#ffffff' });
-    localStorage.setItem('chatHistoryDetailed', JSON.stringify(persistedHistory.slice(-40)));
-    elements.messagesWrapper.scrollTop = elements.messagesWrapper.scrollHeight;
-
-  } catch (e: any) {
-    handleApiError(e);
-    textDiv.innerHTML = `<span class="error-text">Błąd API: ${e.message}</span>`;
-  }
 }
 
-// --- TTS & LIVE ---
-async function speakText(text: string) {
-  try {
-    const ai = getAi();
-    const res = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Powiedz: ${text.substring(0, 500)}` }] }],
-      config: { responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } } }
-    });
-    const b64 = res.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (b64) {
-      const audioCtx = new AudioContext({ sampleRate: 24000 });
-      const buffer = await decodeAudioData(decode(b64), audioCtx, 24000, 1);
-      const source = audioCtx.createBufferSource();
-      source.buffer = buffer; source.connect(audioCtx.destination); source.start();
+function createMessageElement(sender: 'user' | 'ai', pId: string) {
+    const wrap = document.createElement('div');
+    wrap.className = `message-wrapper-outer ${sender}`;
+    const p = sender === 'user' ? userProfile : PERSONAS[pId];
+    wrap.innerHTML = `<div class="message ${sender} glass" style="border-left: 4px solid ${p.color}">
+        <div class="msg-header"><span>${p.avatar}</span> <strong>${p.name}</strong></div>
+        <div class="text-content"></div>
+    </div>`;
+    const content = wrap.querySelector('.text-content') as HTMLElement;
+    elements.messagesDiv.appendChild(wrap);
+    return content;
+}
+
+function renderGallery() {
+    elements.galleryGrid.innerHTML = galleryItems.map(item => `
+        <div class="gallery-item glass" onclick="window.open('${item.url}')">
+            ${item.type === 'image' ? `<img src="${item.url}">` : `<video src="${item.url}" muted loop></video>`}
+            <div class="gallery-info">${item.prompt.slice(0, 30)}...</div>
+        </div>
+    `).join('');
+}
+
+async function loadSelfContext() {
+    try {
+        const r = await fetch(`./index.tsx`);
+        projectCodeContext = `\nSYSTEM_CONTEXT_SOURCE:\n${(await r.text()).slice(0, 8000)}\n`;
+    } catch (e) {}
+}
+
+async function loadProjectDescription() {
+    try {
+        const r = await fetch(`./PROJECT_DESCRIPTION.md`);
+        const text = await r.text();
+        elements.aboutContent.innerHTML = await marked.parse(text);
+    } catch (e) {
+        elements.aboutContent.innerHTML = "Nie udało się załadować opisu projektu.";
     }
-  } catch (e) {}
 }
 
-let liveSession: any = null;
-async function startLiveSession() {
-  await checkApiKey();
-  const ai = getAi();
-  elements.liveOverlay.classList.remove('hidden');
-  const outCtx = new AudioContext({ sampleRate: 24000 });
-  let nextStart = 0;
-  const sourcesArr = new Set<AudioBufferSourceNode>();
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const livePromise = ai.live.connect({
-      model: 'gemini-2.5-flash-native-audio-preview-12-2025',
-      config: { 
-          responseModalities: [Modality.AUDIO], 
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
-          systemInstruction: SYSTEM_INSTRUCTION
-      },
-      callbacks: {
-        onopen: () => {
-          const inCtx = new AudioContext({ sampleRate: 16000 });
-          const src = inCtx.createMediaStreamSource(stream);
-          const proc = inCtx.createScriptProcessor(4096, 1, 1);
-          proc.onaudioprocess = (e) => {
-            const data = e.inputBuffer.getChannelData(0);
-            const i16 = new Int16Array(data.length);
-            for (let i = 0; i < data.length; i++) i16[i] = data[i] * 32768;
-            livePromise.then(session => {
-                liveSession = session;
-                session.sendRealtimeInput({ media: { data: encode(new Uint8Array(i16.buffer)), mimeType: 'audio/pcm;rate=16000' } });
-            });
-          };
-          src.connect(proc); proc.connect(inCtx.destination);
-        },
-        onmessage: async (msg: LiveServerMessage) => {
-          const b64 = msg.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
-          if (b64) {
-            nextStart = Math.max(nextStart, outCtx.currentTime);
-            const buf = await decodeAudioData(decode(b64), outCtx, 24000, 1);
-            const s = outCtx.createBufferSource();
-            s.buffer = buf; 
-            s.connect(outCtx.destination); 
-            s.start(nextStart);
-            nextStart += buf.duration;
-            sourcesArr.add(s);
-          }
-          if (msg.serverContent?.interrupted) { sourcesArr.forEach(s => s.stop()); sourcesArr.clear(); nextStart = 0; }
-        },
-        onerror: (e) => { handleApiError(e); stopLiveSession(); },
-        onclose: () => stopLiveSession()
-      }
-    });
-  } catch (e) { handleApiError(e); stopLiveSession(); }
+function saveSafeHistory() {
+    localStorage.setItem('adiChatHistory', JSON.stringify(chatHistory.slice(-15)));
+    localStorage.setItem('adiGallery', JSON.stringify(galleryItems.slice(-30)));
 }
 
-function stopLiveSession() { 
-    if (liveSession) { liveSession.close(); liveSession = null; }
-    elements.liveOverlay.classList.add('hidden'); 
-}
-
-// --- UI HELPERS ---
-function createMessageElement(sender: 'user' | 'ai', name?: string, avatar?: string, color?: string) {
-  const wrap = document.createElement('div');
-  wrap.className = `message-wrapper-outer ${sender}`;
-  const msg = document.createElement('div');
-  msg.className = `message ${sender}`;
-  
-  const displayAvatar = avatar || (sender === 'user' ? userProfile.avatar : '🤖');
-  const displayName = name || (sender === 'user' ? userProfile.name : 'Adi Pro');
-  const displayColor = color || (sender === 'user' ? userProfile.color : '#ffffff');
-
-  msg.style.backgroundColor = displayColor;
-  if (sender === 'user') msg.style.color = 'white'; // White text on user bubble colors
-
-  msg.innerHTML = `<div class="avatar">${displayAvatar}</div><div class="content"><strong>${displayName}</strong><div class="text-content"></div></div>`;
-  wrap.appendChild(msg);
-  elements.messagesDiv.appendChild(wrap);
-  return msg.querySelector('.text-content') as HTMLElement;
-}
-
-function renderHistory() {
-  elements.messagesDiv.innerHTML = '';
-  persistedHistory.forEach(item => {
-    const textContentEl = createMessageElement(item.sender, item.name, item.avatar, item.color);
-    textContentEl.innerHTML = marked.parse(item.text || "") as string;
-  });
-  elements.messagesWrapper.scrollTop = elements.messagesWrapper.scrollHeight;
-}
-
-// --- SETUP ---
-function init() {
-  renderHistory();
-  setupProfile();
-  setupEmojiPicker();
-
-  elements.sendButton.onclick = () => {
-    const p = elements.messageInput.value.trim();
-    if (!p && !selectedFileBase64) return;
+async function init() {
+    await loadSelfContext();
+    renderGallery();
     
-    const c = createMessageElement('user');
-    if (selectedFileBase64) {
-        const img = document.createElement('img');
-        img.src = `data:${selectedFile!.type};base64,${selectedFileBase64}`;
-        img.className = 'msg-media-inline';
-        c.appendChild(img);
+    for (const msg of chatHistory) {
+        const c = createMessageElement(msg.sender, msg.persona);
+        c.innerHTML = await marked.parse(msg.text);
     }
-    const safePrompt = p || "Analiza zawartości...";
-    c.innerHTML += marked.parse(safePrompt);
-    
-    persistedHistory.push({ 
-        sender: 'user', 
-        text: p, 
-        name: userProfile.name, 
-        avatar: userProfile.avatar,
-        color: userProfile.color
-    });
-    localStorage.setItem('chatHistoryDetailed', JSON.stringify(persistedHistory.slice(-40)));
-    
-    handleChat(p, selectedFileBase64 ? { data: selectedFileBase64, mimeType: selectedFile!.type } : undefined);
-    elements.messageInput.value = "";
-    elements.removeAttachmentBtn.click();
-  };
+    elements.messagesWrapper.scrollTo({ top: elements.messagesWrapper.scrollHeight });
 
-  elements.attachButton.onclick = () => elements.mediaInputHidden.click();
-  elements.mediaInputHidden.onchange = (e: any) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    selectedFile = file;
-    const reader = new FileReader();
-    reader.onload = (re) => {
-        selectedFileBase64 = (re.target?.result as string).split(',')[1];
-        elements.attachmentPreview.classList.remove('hidden');
-        elements.previewContent.innerHTML = file.type.startsWith('image/') ? `<img src="${re.target?.result}">` : `📄 ${file.name}`;
+    elements.sendButton.onclick = async () => {
+        const val = elements.messageInput.value.trim();
+        if (!val && selectedFiles.length === 0) return;
+        
+        const curFiles = [...selectedFiles];
+        const c = createMessageElement('user', currentPersona);
+        c.innerHTML = await marked.parse(val || "Przesłano zasoby");
+        chatHistory.push({ sender: 'user', text: val || "Multimedia", persona: currentPersona });
+        
+        elements.messageInput.value = "";
+        selectedFiles = [];
+        elements.attachmentPreview.classList.add('hidden');
+        handleChat(val, curFiles);
     };
-    reader.readAsDataURL(file);
-  };
-  elements.removeAttachmentBtn.onclick = () => { selectedFile = null; selectedFileBase64 = null; elements.attachmentPreview.classList.add('hidden'); };
 
-  elements.thinkToggle.onclick = () => { isThinkMode = !isThinkMode; elements.thinkToggle.classList.toggle('active', isThinkMode); };
-  elements.videoToggle.onclick = () => { isVideoMode = !isVideoMode; elements.videoToggle.classList.toggle('active', isVideoMode); };
-  elements.searchToggle.onclick = () => { isSearchEnabled = !isSearchEnabled; elements.searchToggle.classList.toggle('active', isSearchEnabled); };
-  elements.mapsToggle.onclick = () => { isMapsEnabled = !isMapsEnabled; elements.mapsToggle.classList.toggle('active', isMapsEnabled); };
-  elements.ttsToggle.onclick = () => { isTTSActive = !isTTSActive; elements.ttsToggle.classList.toggle('active', isTTSActive); };
-  
-  elements.liveMicBtn.onclick = startLiveSession;
-  elements.stopLiveBtn.onclick = stopLiveSession;
-  elements.manageApiKeyBtn.onclick = checkApiKey;
-  
-  elements.settingsBtn.onclick = () => elements.settingsModal.classList.remove('hidden');
-  const closeSettings = () => elements.settingsModal.classList.add('hidden');
-  elements.closeSettingsBtnTop.onclick = closeSettings;
-  elements.closeSettingsBtn.onclick = closeSettings;
+    elements.attachButton.onclick = () => elements.mediaInputHidden.click();
+    elements.mediaInputHidden.onchange = async (e: any) => {
+        for (const file of e.target.files) {
+            const reader = new FileReader();
+            const p = new Promise<SelectedFile>(res => {
+                reader.onload = r => res({ data: (r.target?.result as string).split(',')[1], mimeType: file.type, name: file.name, previewUrl: r.target?.result as string });
+                reader.readAsDataURL(file);
+            });
+            selectedFiles.push(await p);
+        }
+        elements.attachmentPreview.classList.remove('hidden');
+        elements.previewCarousel.innerHTML = selectedFiles.map(f => `<div class="preview-card glass"><img src="${f.previewUrl}"></div>`).join('');
+    };
 
-  elements.clearHistoryBtn.onclick = () => {
-    if (confirm("Czy na pewno chcesz wyczyścić historię rozmów?")) {
-        persistedHistory = [];
-        localStorage.removeItem('chatHistoryDetailed');
-        elements.messagesDiv.innerHTML = '';
-        showToast("Historia wyczyszczona.");
-    }
-  };
+    const tgl = (btn: any, setter: (v: boolean) => void) => {
+        btn.onclick = () => {
+            btn.classList.toggle('active');
+            setter(btn.classList.contains('active'));
+        };
+    };
+    
+    tgl(elements.thinkToggle, v => isThinkMode = v);
+    tgl(elements.videoToggle, v => isVideoMode = v);
+    tgl(elements.searchToggle, v => isSearchEnabled = v);
+    tgl(elements.mapsToggle, v => isMapsEnabled = v);
+    
+    elements.galleryToggle.onclick = () => elements.galleryDrawer.classList.toggle('hidden');
+    elements.closeGalleryBtn.onclick = () => elements.galleryDrawer.classList.add('hidden');
+    elements.settingsBtn.onclick = () => elements.settingsModal.classList.remove('hidden');
+    elements.profileBtn.onclick = () => elements.profileModal.classList.remove('hidden');
+    elements.pricingBtn.onclick = () => elements.pricingModal.classList.remove('hidden');
+    elements.closePricingBtn.onclick = () => elements.pricingModal.classList.add('hidden');
+    
+    elements.aboutBtn.onclick = async () => {
+        await loadProjectDescription();
+        elements.aboutModal.classList.remove('hidden');
+    };
+    elements.closeAboutBtn.onclick = () => elements.aboutModal.classList.add('hidden');
+    
+    elements.manageApiKeyBtn.onclick = async () => await (window as any).aistudio.openSelectKey();
+    
+    document.querySelectorAll('.close-btn').forEach(b => (b as any).onclick = () => {
+        elements.settingsModal.classList.add('hidden'); 
+        elements.profileModal.classList.add('hidden');
+        elements.pricingModal.classList.add('hidden');
+        elements.aboutModal.classList.add('hidden');
+    });
+
+    elements.personaSelector.onchange = (e: any) => {
+        currentPersona = e.target.value;
+        document.body.className = `persona-${currentPersona}`;
+    };
 }
 
 init();

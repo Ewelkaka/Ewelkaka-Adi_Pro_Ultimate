@@ -4,8 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#3498db">
-    <title>Adi Pro - Ultimate AI by Ewelina Lesiak</title>
+    <title>Adi Pro Ultimate - Established 2025</title>
     <link rel="stylesheet" href="index.css">
     <script type="importmap">
       {
@@ -16,116 +15,139 @@
       }
     </script>
 </head>
-<body class="theme-jasny">
+<body class="persona-standard">
+    <div id="ambient-bg">
+        <div class="glow-sphere"></div>
+        <div class="glow-sphere"></div>
+    </div>
     <div id="toast-container"></div>
-    <div class="parallax-stars"></div>
 
-    <!-- Live API Overlay -->
-    <div id="live-overlay" class="hidden">
-        <div class="live-content">
-            <div class="live-pulse"></div>
-            <div class="live-status">Rozmowa na żywo...</div>
-            <div id="live-transcription">Słucham Cię...</div>
-            <button id="stop-live-btn">Zakończ</button>
+    <div id="gallery-drawer" class="drawer hidden">
+        <div class="drawer-header">
+            <h3>🎨 Art Station 2026</h3>
+            <button id="close-gallery-btn">✕</button>
+        </div>
+        <div id="gallery-grid"></div>
+    </div>
+
+    <!-- MODAL OPISU PROJEKTU -->
+    <div id="about-modal-overlay" class="hidden modal-overlay">
+        <div id="about-modal" class="modal-content glass about-modal-wide">
+            <div class="modal-header">
+                <h2>📖 O Projekcie Adi Pro</h2>
+                <button id="close-about-btn" class="close-btn">✕</button>
+            </div>
+            <div id="about-content" class="scroll-area">
+                <!-- Treść zostanie wstrzyknięta z MD -->
+            </div>
         </div>
     </div>
 
-    <!-- User Profile Modal -->
+    <!-- MODAL OFERTY HANDLOWEJ -->
+    <div id="pricing-modal-overlay" class="hidden modal-overlay">
+        <div id="pricing-modal" class="modal-content glass pricing-modal-wide">
+            <div class="modal-header">
+                <h2>💎 Oferta Handlowa 2026</h2>
+                <button id="close-pricing-btn" class="close-btn">✕</button>
+            </div>
+            <div class="pricing-grid">
+                <div class="pricing-card glass">
+                    <div class="tier">PROFESSIONAL</div>
+                    <div class="price">$49<span>/mc</span></div>
+                    <ul>
+                        <li>Nielimitowany tekst (3 Pro)</li>
+                        <li>Grafika 4K (Ultra Quality)</li>
+                        <li>Search Grounding</li>
+                        <li>Wsparcie Priority</li>
+                    </ul>
+                    <button class="buy-btn">Wybierz Pro</button>
+                </div>
+                <div class="pricing-card glass featured">
+                    <div class="badge">ESTABLISHED 2025</div>
+                    <div class="tier">STUDIO</div>
+                    <div class="price">$199<span>/mc</span></div>
+                    <ul>
+                        <li>Wszystko w Pro +</li>
+                        <li>Veo 3.1 Video Render</li>
+                        <li>Commercial License v2</li>
+                        <li>Multi-modal Orchestration</li>
+                    </ul>
+                    <button class="buy-btn">Wybierz Studio</button>
+                </div>
+                <div class="pricing-card glass gold">
+                    <div class="tier">ENTERPRISE</div>
+                    <div class="price">od $7500</div>
+                    <ul>
+                        <li>Dedykowane Modele AI</li>
+                        <li>Instalacja On-Premise</li>
+                        <li>Pełne SLA & Support</li>
+                        <li>Własne Persony AI</li>
+                    </ul>
+                    <button class="buy-btn">Kontakt B2B</button>
+                </div>
+            </div>
+            <p class="byok-info">Dostępna licencja Legacy BYOK za <b>$349</b>.</p>
+        </div>
+    </div>
+
     <div id="profile-modal-overlay" class="hidden modal-overlay">
-        <div id="profile-modal" class="modal-content">
+        <div id="profile-modal" class="modal-content glass">
             <div class="modal-header">
                 <h2>Twój Profil</h2>
-                <button id="close-profile-btn-top" class="close-btn">✕</button>
+                <button id="close-profile-btn" class="close-btn">✕</button>
             </div>
             <div class="profile-scroll-area">
                 <div class="profile-field">
-                    <label for="profile-name-input">Twoje Imię</label>
-                    <input type="text" id="profile-name-input" placeholder="Jak mamy Cię nazywać?">
+                    <label>Imię</label>
+                    <input type="text" id="profile-name-input" value="Ewelina">
                 </div>
                 <div class="profile-field">
-                    <label>Wybierz Awatar</label>
-                    <div id="avatar-grid">
-                        <!-- Wypełniane przez JS -->
-                    </div>
-                </div>
-                <div class="profile-field">
-                    <label for="profile-color-input">Kolor Twoich wiadomości</label>
-                    <input type="color" id="profile-color-input">
+                    <label>Kolor Akcentu</label>
+                    <input type="color" id="profile-color-input" value="#3498db">
                 </div>
             </div>
-            <div class="profile-actions">
-                <button id="save-profile-btn" class="action-btn-primary">Zapisz Zmiany</button>
-            </div>
+            <button id="save-profile-btn" class="action-btn-primary">Zapisz i Odśwież</button>
         </div>
     </div>
 
-    <!-- Settings Modal -->
     <div id="settings-modal-overlay" class="hidden modal-overlay">
-        <div id="settings-modal" class="modal-content">
+        <div id="settings-modal" class="modal-content glass">
             <div class="modal-header">
-                <h2>Ustawienia Systemowe</h2>
-                <button id="close-settings-btn-top" class="close-btn">✕</button>
+                <h2>Ustawienia 2026</h2>
+                <button id="close-settings-btn" class="close-btn">✕</button>
             </div>
-            <div class="settings-scroll-area">
-                <section class="settings-section">
-                    <h3><span class="icon">👑</span> Autorka Projektu</h3>
-                    <div class="creator-card">
-                        <div class="creator-avatar">EL</div>
-                        <div class="creator-info">
-                            <p class="creator-name">Ewelina Lesiak</p>
-                            <p class="creator-role">Lead Developer & Designer</p>
-                        </div>
-                    </div>
-                </section>
-                <section class="settings-section">
-                    <h3><span class="icon">🛡️</span> Bezpieczeństwo i API</h3>
-                    <p>Dla modeli Pro i Veo wymagany jest płatny klucz API ze wskazaniem projektu.</p>
-                    <div class="api-management-box">
-                        <button id="manage-api-key-btn" class="action-btn-primary">🔑 Zarządzaj Kluczem API (Paid)</button>
-                        <p class="billing-info"><a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank">Dokumentacja płatności API</a></p>
-                    </div>
-                </section>
-                <section class="settings-section">
-                    <h3><span class="icon">📂</span> Dane i Pamięć</h3>
-                    <p>Twoja historia rozmów jest zapisywana lokalnie w przeglądarce.</p>
-                    <button id="clear-history-btn" class="secondary" style="border-color: #e74c3c; color: #e74c3c;">🗑️ Wyczyść historię czatu</button>
-                </section>
-            </div>
-            <div class="profile-actions">
-                <button id="close-settings-btn" class="secondary">Zamknij</button>
-            </div>
+            <button id="about-btn" class="action-btn-primary">📖 Wizja i Opis Projektu</button>
+            <button id="pricing-btn" class="action-btn-primary gold-btn">💰 Cennik Enterprise 2026</button>
+            <button id="reset-chat-btn" class="action-btn-primary">Wyczyść Czat</button>
+            <button id="reset-all-btn" class="action-btn-primary">Reset Fabryczny</button>
+            <button id="manage-api-key-btn" class="action-btn-primary">Zmień Klucz API</button>
         </div>
     </div>
 
-    <div id="chat-container">
+    <div id="chat-container" class="glass">
         <div id="chat-header">
-            <div class="header-left">
-                <div class="logo-wrapper">
-                    <h1>Adi Pro <span class="ai-badge">Ultimate v2</span></h1>
-                    <p class="creator-tagline">Created by Ewelina Lesiak</p>
-                </div>
+            <div class="logo-wrapper">
+                <h1>Adi Pro <span class="ai-badge">Ultimate 2026</span></h1>
+                <small class="est-label">Est. March 2025</small>
             </div>
+            <select id="persona-selector">
+                <option value="standard">🤖 Standard 2026</option>
+                <option value="expert">🧠 Strategic</option>
+                <option value="artist">🎨 Visuals</option>
+                <option value="creative">✍️ Content</option>
+            </select>
             <div class="header-controls">
-                <button id="profile-btn" title="Twój Profil">👤</button>
-                <button id="transcribe-btn" title="Transkrypcja audio">🎙️</button>
-                <button id="live-mic-btn" title="Rozmowa Live">🎤</button>
-                <button id="settings-btn" title="Ustawienia">⚙️</button>
-                <div id="theme-selector">
-                    <button id="theme-button" title="Motyw">🎨</button>
-                    <div id="theme-menu" class="hidden">
-                        <div class="theme-option" data-theme="jasny">Jasny</div>
-                        <div class="theme-option" data-theme="ciemny">Ciemny</div>
-                        <div class="theme-option" data-theme="kosmos">Kosmos</div>
-                    </div>
-                </div>
+                <button id="gallery-toggle-btn">🎨</button>
+                <button id="profile-btn">👤</button>
+                <button id="settings-btn">⚙️</button>
             </div>
         </div>
 
         <div id="smart-tools-bar">
-            <button id="search-toggle" class="tool-toggle" title="Użyj Google Search">🔍 Search</button>
-            <button id="maps-toggle" class="tool-toggle" title="Użyj Google Maps">📍 Maps</button>
-            <button onclick="window.analyzeContent('summarize')">📝 Podsumuj</button>
-            <button id="tts-global-toggle">🔊 Czytaj</button>
+            <button id="search-toggle" class="tool-toggle">🔍 Search</button>
+            <button id="maps-toggle" class="tool-toggle">📍 Maps</button>
+            <button id="think-toggle" class="tool-toggle">🧠 Think</button>
+            <button id="video-toggle" class="tool-toggle">🎬 Video</button>
         </div>
 
         <div id="messages-wrapper">
@@ -133,53 +155,24 @@
         </div>
 
         <div id="attachment-preview" class="hidden">
-            <div id="preview-content"></div>
-            <button id="remove-attachment">✕</button>
-        </div>
-
-        <div id="media-bar">
-            <div class="media-group toggles">
-                <button id="think-toggle" class="mode-toggle" title="Model 3 Pro Deep Thinking">🧠 Think</button>
-                <button id="video-toggle" class="mode-toggle" title="Tryb Video Veo 3.1">🎬 Video</button>
-            </div>
-            <div class="media-group selectors">
-                <select id="img-size" title="Rozmiar obrazu">
-                    <option value="1K">1K</option>
-                    <option value="2K" selected>2K</option>
-                    <option value="4K">4K</option>
-                </select>
-                <select id="img-aspect" title="Proporcje">
-                    <option value="1:1" selected>1:1</option>
-                    <option value="2:3">2:3</option>
-                    <option value="3:2">3:2</option>
-                    <option value="3:4">3:4</option>
-                    <option value="4:3">4:3</option>
-                    <option value="9:16">9:16</option>
-                    <option value="16:9">16:9</option>
-                    <option value="21:9">21:9</option>
-                </select>
-            </div>
+            <div id="preview-carousel"></div>
         </div>
 
         <div id="input-area">
-            <input type="file" id="media-input-hidden" accept="image/jpeg,image/png,image/webp,video/mp4,audio/*" style="display: none;">
-            <div id="emoji-picker-container" class="hidden">
-                <div id="emoji-picker"></div>
-            </div>
-            <button id="emoji-button" title="Emoji">😊</button>
+            <input type="file" id="media-input-hidden" style="display: none;" accept="image/*,video/*" multiple>
             <button id="attach-button">📎</button>
             <div class="input-wrapper">
-                <input type="text" id="message-input" placeholder="Wpisz polecenie, generuj obraz/video lub edytuj zdjęcie...">
+                <input type="text" id="message-input" placeholder="W czym może Ci pomóc Adi Pro w 2026 roku?">
             </div>
-            <button id="send-button">🚀</button>
+            <select id="img-size">
+                <option value="1K">1K</option>
+                <option value="2K" selected>2K</option>
+                <option value="4K">4K</option>
+            </select>
+            <button id="send-button">Wyślij 🚀</button>
         </div>
     </div>
 
     <script type="module" src="index.tsx"></script>
-    <script>
-        window.analyzeContent = (action) => {
-           window.dispatchEvent(new CustomEvent('smartAction', { detail: { action } }));
-        };
-    </script>
 </body>
 </html>

@@ -1,21 +1,24 @@
+
 {
-  "name": "",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "name": "adi-pro-ultimate",
+  "version": "2.0.0",
+  "description": "Adi Pro Ultimate by Ewelina Lesiak - Windows Desktop App",
+  "main": "main.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "start": "electron .",
+    "build-win": "electron-builder --win portable"
   },
-  "dependencies": {
-    "@google/genai": "^0.12.0",
-    "marked": "^4.0.0"
-  },
+  "author": "Ewelina Lesiak",
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "electron": "^25.0.0",
+    "electron-builder": "^24.4.0"
+  },
+  "build": {
+    "appId": "com.ewelinalesiak.adipro",
+    "productName": "Adi Pro Ultimate",
+    "win": {
+      "target": "portable",
+      "icon": "https://cdn-icons-png.flaticon.com/512/1698/1698535.png"
+    }
   }
 }
