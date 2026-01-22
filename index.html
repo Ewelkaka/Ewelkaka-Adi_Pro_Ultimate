@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -22,112 +21,27 @@
     </div>
     <div id="toast-container"></div>
 
-    <div id="gallery-drawer" class="drawer hidden">
-        <div class="drawer-header">
-            <h3>🎨 Art Station 2026</h3>
-            <button id="close-gallery-btn">✕</button>
-        </div>
-        <div id="gallery-grid"></div>
-    </div>
-
-    <!-- MODAL OPISU PROJEKTU -->
-    <div id="about-modal-overlay" class="hidden modal-overlay">
-        <div id="about-modal" class="modal-content glass about-modal-wide">
-            <div class="modal-header">
-                <h2>📖 O Projekcie Adi Pro</h2>
-                <button id="close-about-btn" class="close-btn">✕</button>
-            </div>
-            <div id="about-content" class="scroll-area">
-                <!-- Treść zostanie wstrzyknięta z MD -->
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL OFERTY HANDLOWEJ -->
-    <div id="pricing-modal-overlay" class="hidden modal-overlay">
-        <div id="pricing-modal" class="modal-content glass pricing-modal-wide">
-            <div class="modal-header">
-                <h2>💎 Oferta Handlowa 2026</h2>
-                <button id="close-pricing-btn" class="close-btn">✕</button>
-            </div>
-            <div class="pricing-grid">
-                <div class="pricing-card glass">
-                    <div class="tier">PROFESSIONAL</div>
-                    <div class="price">$49<span>/mc</span></div>
-                    <ul>
-                        <li>Nielimitowany tekst (3 Pro)</li>
-                        <li>Grafika 4K (Ultra Quality)</li>
-                        <li>Search Grounding</li>
-                        <li>Wsparcie Priority</li>
-                    </ul>
-                    <button class="buy-btn">Wybierz Pro</button>
-                </div>
-                <div class="pricing-card glass featured">
-                    <div class="badge">ESTABLISHED 2025</div>
-                    <div class="tier">STUDIO</div>
-                    <div class="price">$199<span>/mc</span></div>
-                    <ul>
-                        <li>Wszystko w Pro +</li>
-                        <li>Veo 3.1 Video Render</li>
-                        <li>Commercial License v2</li>
-                        <li>Multi-modal Orchestration</li>
-                    </ul>
-                    <button class="buy-btn">Wybierz Studio</button>
-                </div>
-                <div class="pricing-card glass gold">
-                    <div class="tier">ENTERPRISE</div>
-                    <div class="price">od $7500</div>
-                    <ul>
-                        <li>Dedykowane Modele AI</li>
-                        <li>Instalacja On-Premise</li>
-                        <li>Pełne SLA & Support</li>
-                        <li>Własne Persony AI</li>
-                    </ul>
-                    <button class="buy-btn">Kontakt B2B</button>
-                </div>
-            </div>
-            <p class="byok-info">Dostępna licencja Legacy BYOK za <b>$349</b>.</p>
-        </div>
-    </div>
-
-    <div id="profile-modal-overlay" class="hidden modal-overlay">
-        <div id="profile-modal" class="modal-content glass">
-            <div class="modal-header">
-                <h2>Twój Profil</h2>
-                <button id="close-profile-btn" class="close-btn">✕</button>
-            </div>
-            <div class="profile-scroll-area">
-                <div class="profile-field">
-                    <label>Imię</label>
-                    <input type="text" id="profile-name-input" value="Ewelina">
-                </div>
-                <div class="profile-field">
-                    <label>Kolor Akcentu</label>
-                    <input type="color" id="profile-color-input" value="#3498db">
-                </div>
-            </div>
-            <button id="save-profile-btn" class="action-btn-primary">Zapisz i Odśwież</button>
-        </div>
-    </div>
-
     <div id="settings-modal-overlay" class="hidden modal-overlay">
         <div id="settings-modal" class="modal-content glass">
             <div class="modal-header">
                 <h2>Ustawienia 2026</h2>
                 <button id="close-settings-btn" class="close-btn">✕</button>
             </div>
-            <button id="about-btn" class="action-btn-primary">📖 Wizja i Opis Projektu</button>
-            <button id="pricing-btn" class="action-btn-primary gold-btn">💰 Cennik Enterprise 2026</button>
+            <button onclick="window.aistudio.openSelectKey()" class="action-btn-primary gold-btn">🔑 Zmień Klucz API (Premium Access)</button>
+            <p style="font-size: 0.7rem; margin: 10px 0; opacity: 0.7;">Wymagany klucz z bilingiem dla Veo/Pro: ai.google.dev/gemini-api/docs/billing</p>
+            <hr>
             <button id="reset-chat-btn" class="action-btn-primary">Wyczyść Czat</button>
-            <button id="reset-all-btn" class="action-btn-primary">Reset Fabryczny</button>
-            <button id="manage-api-key-btn" class="action-btn-primary">Zmień Klucz API</button>
         </div>
     </div>
 
     <div id="chat-container" class="glass">
         <div id="chat-header">
             <div class="logo-wrapper">
-                <h1>Adi Pro <span class="ai-badge">Ultimate 2026</span></h1>
+                <h1 class="neon-logo">
+                    <span class="logo-adi">Adi</span>
+                    <span class="logo-pro">Pro</span>
+                    <span class="logo-ultimate">Ultimate 2026</span>
+                </h1>
                 <small class="est-label">Est. March 2025</small>
             </div>
             <select id="persona-selector">
@@ -137,17 +51,16 @@
                 <option value="creative">✍️ Content</option>
             </select>
             <div class="header-controls">
-                <button id="gallery-toggle-btn">🎨</button>
-                <button id="profile-btn">👤</button>
                 <button id="settings-btn">⚙️</button>
             </div>
         </div>
 
         <div id="smart-tools-bar">
-            <button id="search-toggle" class="tool-toggle">🔍 Search</button>
-            <button id="maps-toggle" class="tool-toggle">📍 Maps</button>
-            <button id="think-toggle" class="tool-toggle">🧠 Think</button>
-            <button id="video-toggle" class="tool-toggle">🎬 Video</button>
+            <button id="search-toggle" class="tool-toggle"><span>🔍</span> Search</button>
+            <button id="maps-toggle" class="tool-toggle"><span>📍</span> Maps</button>
+            <button id="think-toggle" class="tool-toggle"><span>🧠</span> Think</button>
+            <button id="video-toggle" class="tool-toggle"><span>🎬</span> Video</button>
+            <div id="api-key-status" style="margin-left: auto;"></div>
         </div>
 
         <div id="messages-wrapper">
@@ -160,16 +73,18 @@
 
         <div id="input-area">
             <input type="file" id="media-input-hidden" style="display: none;" accept="image/*,video/*" multiple>
-            <button id="attach-button">📎</button>
+            <div class="action-buttons-group">
+                <button id="attach-button" class="pastel-btn lavender" title="Załącz pliki">📎</button>
+            </div>
             <div class="input-wrapper">
-                <input type="text" id="message-input" placeholder="W czym może Ci pomóc Adi Pro w 2026 roku?">
+                <input type="text" id="message-input" placeholder="W czym może Ci pomóc Adi Pro?">
             </div>
             <select id="img-size">
                 <option value="1K">1K</option>
                 <option value="2K" selected>2K</option>
                 <option value="4K">4K</option>
             </select>
-            <button id="send-button">Wyślij 🚀</button>
+            <button id="send-button" class="pastel-btn coral">Wyślij 🚀</button>
         </div>
     </div>
 
