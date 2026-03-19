@@ -1,0 +1,29 @@
+{
+  "licencja": {
+    "produkt": "Adi Pro Ultimate 2026 Sovereign",
+    "licencjodawca": "Ewelina Lesiak",
+    "numer_licencji": "fade3d35d544f2f4989f78ff1d15105b4f59555e4cc976f0dc933c336c50646a",
+    "data_aktywacji": "2026-02-20",
+    "terytorium": "global",
+    "wyłączność": true
+  },
+  "warunki_użytkowania": {
+    "autoryzowany_użytkownik": true,
+    "zakaz_kopiowania": true,
+    "zakaz_modyfikacji": true,
+    "zakaz_dystrybucji": true,
+    "blokada_automat": true
+  },
+  "mechanizm_techniczny": {
+    "sprawdzanie_tokenu": "przy_starcie_systemu_i_cykl_czasowy",
+    "blokada_przy_naruszeniu": true,
+    "komunikat_blokady": "Licencja nieważna lub nieautoryzowana – kontakt z właścicielem"
+  },
+  "skutki_prawne": {
+    "odpowiedzialność": "cywilna_i_karna",
+    "prawo": "Polska",
+    "sąd_właściwy": "siedziba_licencjodawcy",
+    "prawo_dochodzenia_odszkodowania": true,
+    "prawo_unieważnienia_licencji": true
+  }
+}

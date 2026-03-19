@@ -1,93 +1,824 @@
+
 <!DOCTYPE html>
 <html lang="pl">
 <head>
+    <script>
+        // Global Error Suppression for Extension Conflicts
+        (function() {
+            const ignoreErrors = ['destroyTonkeeper', 'ResizeObserver loop limit exceeded', 'Failed to connect to MetaMask'];
+            
+            // Suppress console.error
+            const originalConsoleError = console.error;
+            console.error = function(...args) {
+                const msg = args.map(arg => String(arg)).join(' ');
+                if (ignoreErrors.some(e => msg.includes(e))) return;
+                originalConsoleError.apply(console, args);
+            };
+
+            // Suppress window.onerror
+            window.addEventListener('error', function(event) {
+                const msg = event.message || '';
+                if (ignoreErrors.some(e => msg.includes(e))) {
+                    event.stopImmediatePropagation();
+                    event.preventDefault();
+                }
+            }, true);
+
+            // Suppress unhandled rejections
+            window.addEventListener('unhandledrejection', function(event) {
+                const msg = event.reason?.message || String(event.reason);
+                if (ignoreErrors.some(e => msg.includes(e))) {
+                    event.stopImmediatePropagation();
+                    event.preventDefault();
+                }
+            }, true);
+        })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Adi Pro Ultimate - Established 2025</title>
-    <link rel="stylesheet" href="index.css">
-    <script type="importmap">
-      {
-        "imports": {
-          "@google/genai": "https://esm.sh/@google/genai@^0.12.0",
-          "marked": "https://esm.sh/marked@^4.0.0"
+    <title>ADI PRO ULTIMATE 2026 SOVEREIGN</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    colors: {
+                        'adi-bg': '#000000',
+                        'adi-panel': '#0b1219',
+                        'adi-cyan': '#00f2ff',
+                        'adi-magenta': '#ff00ff',
+                        'adi-gold': '#ffd700',
+                        'adi-green': '#00ff41',
+                        'adi-red': '#ff3333',
+                        'adi-pink': '#ff0055',
+                        'adi-teal': '#00ffcc',
+                    }
+                }
+            }
         }
-      }
     </script>
+    <style>
+        body { 
+            background-color: #000000; 
+            color: #e5e7eb; 
+            font-family: 'JetBrains Mono', monospace;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* --- CRT & GLOBAL EFFECTS --- */
+        .crt-container { position: fixed; inset: 0; pointer-events: none; z-index: 9999; overflow: hidden; }
+        .crt-scanlines { position: absolute; inset: 0; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%); background-size: 100% 2px; animation: flicker 0.15s infinite; z-index: 10000; }
+        .crt-vignette { position: absolute; inset: 0; background: radial-gradient(circle, rgba(0,0,0,0) 60%, rgba(0,0,0,0.8) 100%); z-index: 10002; }
+        
+        @keyframes flicker { 0%, 100% { opacity: 0.12; } 50% { opacity: 0.15; } }
+        @keyframes shake { 0%, 100% { transform: translate(0, 0); } 10%, 30%, 50%, 70%, 90% { transform: translate(-1px, -1px); } 20%, 40%, 60%, 80% { transform: translate(1px, 1px); } }
+        .app-shake { animation: shake 0.2s cubic-bezier(.36,.07,.19,.97) both; }
+
+        /* --- MATRIX & CELLS --- */
+        .matrix-cell { 
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); 
+            border: 1px solid rgba(255,255,255,0.05); 
+            position: relative; 
+            background: rgba(11, 18, 25, 0.6); 
+        }
+        .matrix-cell.selected { border-color: #ffd700 !important; background: rgba(255, 215, 0, 0.08) !important; box-shadow: 0 0 15px rgba(255, 215, 0, 0.15); z-index: 20; }
+        
+        .cell-scanline { position: absolute; left: 0; width: 100%; height: 2px; background: #ff00ff; box-shadow: 0 0 8px #ff00ff; opacity: 0; pointer-events: none; z-index: 5; }
+
+        /* Working pulse for all active batteries */
+        @keyframes cell-work-pulse {
+            0%, 100% { background: rgba(11, 18, 25, 0.6); }
+            50% { background: rgba(0, 242, 255, 0.04); }
+        }
+        .working-pulse { animation: cell-work-pulse 3s ease-in-out infinite; }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 0, 255, 0.2); border-radius: 2px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 0, 255, 0.4); }
+
+        @keyframes status-healthy-breathe {
+            0%, 100% { border-color: rgba(0, 255, 65, 0.1); }
+            50% { border-color: rgba(0, 255, 65, 0.25); }
+        }
+        .status-healthy { animation: status-healthy-breathe 4s ease-in-out infinite; }
+
+        @keyframes status-warning-glow {
+            0%, 100% { border-color: rgba(255, 215, 0, 0.15); }
+            50% { border-color: rgba(255, 215, 0, 0.5); box-shadow: inset 0 0 10px rgba(255, 215, 0, 0.1); }
+        }
+        .status-warning { animation: status-warning-glow 3s ease-in-out infinite; }
+
+        @keyframes status-error-pulse {
+            0%, 100% { border-color: rgba(255, 51, 51, 0.3); }
+            50% { border-color: rgba(255, 51, 51, 0.9); box-shadow: inset 0 0 15px rgba(255, 51, 51, 0.2); }
+        }
+        .status-error { animation: status-error-pulse 1.5s ease-in-out infinite; }
+
+        /* Extreme green flashing for repairing bank */
+        @keyframes green-fusion-pulse {
+            0%, 100% { background: rgba(0, 255, 65, 0.1); border-color: #00ff41; box-shadow: 0 0 10px rgba(0, 255, 65, 0.2); }
+            50% { background: rgba(0, 255, 65, 0.6); border-color: #ffffff; box-shadow: 0 0 30px #00ff41; }
+        }
+        .status-repairing { animation: green-fusion-pulse 0.4s ease-in-out infinite !important; z-index: 50 !important; }
+        .status-repairing .cell-scanline { opacity: 1; background: #ffffff !important; box-shadow: 0 0 15px #ffffff !important; animation: cell-scan 0.3s linear infinite; }
+        @keyframes cell-scan { 0% { top: -5%; } 100% { top: 105%; } }
+
+        /* --- HADRON VISUALIZER --- */
+        .collider-stage { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle, rgba(0,242,255,0.03) 0%, transparent 75%); }
+        #hadron-canvas { position: absolute; inset: 0; z-index: 5; mix-blend-mode: screen; }
+        .central-core-wrapper { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10; pointer-events: none; }
+        .fusion-gauge-fill { position: absolute; width: 160px; height: 160px; border: 2px solid transparent; border-top-color: #00ff41; border-radius: 50%; display: none; filter: drop-shadow(0 0 12px #00ff41); }
+
+        /* --- BUTTONS & CHARTS --- */
+        .console-btn {
+            position: relative; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.02); transition: all 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+            display: flex; align-items: center; justify-content: center; z-index: 1;
+        }
+        .console-btn:hover { border-color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.05); }
+        .console-btn:active { transform: scale(0.98); }
+        
+        .btn-viz { position: absolute; inset: 0; pointer-events: none; opacity: 0.15; transition: opacity 0.3s; z-index: 0; }
+        .console-btn:hover .btn-viz { opacity: 0.6; }
+
+        .viz-fft { display: flex; align-items: flex-end; justify-content: space-around; padding: 0 10%; }
+        .fft-bar { width: 4px; background: #00f2ff; height: 10%; animation: fft-bounce 0.4s ease-in-out infinite alternate; }
+        @keyframes fft-bounce { from { height: 10%; } to { height: 70%; } }
+
+        .viz-charge { display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .charge-ring { position: absolute; border: 1px solid #00ff41; border-radius: 50%; animation: charge-expand 1s linear infinite; opacity: 0; }
+        @keyframes charge-expand { 0% { width: 0; height: 0; opacity: 1; } 100% { width: 150px; height: 150px; opacity: 0; } }
+
+        .viz-repair { background: linear-gradient(0deg, transparent 45%, #00ff41 50%, transparent 55%); background-size: 100% 200%; animation: repair-sweep 0.5s linear infinite; }
+        @keyframes repair-sweep { from { background-position: 0 100%; } to { background-position: 0 -100%; } }
+
+        .viz-sync { overflow: hidden; }
+        .sync-wave {
+            width: 200%; height: 100%;
+            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 20"><path d="M0 10 Q 12.5 0 25 10 T 50 10 T 75 10 T 100 10" fill="none" stroke="%23ffd700" stroke-width="1"/></svg>');
+            background-repeat: repeat-x; background-size: 50% 100%; animation: wave-move 3s linear infinite;
+        }
+        @keyframes wave-move { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+        .viz-equity { display: flex; align-items: flex-end; }
+        .equity-line { width: 100%; height: 2px; background: white; transform-origin: left; animation: equity-rise 4s infinite; opacity: 0.5; }
+        @keyframes equity-rise { 0% { transform: scaleX(0) rotate(-10deg); } 100% { transform: scaleX(1) rotate(-30deg); } }
+
+        .viz-stress { background: radial-gradient(circle, #ff3333 0%, transparent 70%); opacity: 0; animation: stress-pulse 1s infinite alternate; }
+        .viz-v2g { background: radial-gradient(circle, #00f2ff 0%, transparent 70%); opacity: 0; animation: stress-pulse 1.5s infinite alternate; }
+        @keyframes stress-pulse { from { opacity: 0; transform: scale(0.5); } to { opacity: 0.3; transform: scale(1.2); } }
+        
+        .viz-isotope { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 4px; }
+        .iso-dot { width: 4px; height: 4px; border-radius: 50%; background: #00ffcc; animation: iso-jitter 0.5s infinite; }
+        @keyframes iso-jitter { 0%, 100% { transform: translate(0); opacity: 1; } 50% { transform: translate(2px, -2px); opacity: 0.5; } }
+
+        .engineering-grid { background-image: linear-gradient(rgba(0,242,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,242,255,0.03) 1px, transparent 1px); background-size: 40px 40px; }
+
+        #voltage-chart-root {
+            position: absolute; top: 20px; left: 20px; right: 20px; height: 160px; z-index: 10;
+            background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px); border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 10px; border-radius: 4px; pointer-events: none;
+        }
+
+        #oscilloscope-root {
+            position: absolute; bottom: 10px; left: 20px; right: 20px; height: 60px; z-index: 10;
+            background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px); border: 1px solid rgba(0, 255, 204, 0.1);
+            padding: 5px; border-radius: 2px; pointer-events: none;
+        }
+
+        .section-header {
+            font-size: 8px; font-weight: 900; letter-spacing: 2px; color: rgba(255,255,255,0.2);
+            text-transform: uppercase; margin-bottom: 4px; border-left: 2px solid currentColor; padding-left: 8px;
+        }
+
+        .airgap-badge {
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid #00ff41;
+            color: #00ff41;
+            padding: 2px 8px;
+            font-size: 8px;
+            font-weight: bold;
+            border-radius: 2px;
+            animation: pulse-airgap 2s infinite;
+        }
+        @keyframes pulse-airgap { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        @keyframes v2g-engaged-glow {
+            0%, 100% { box-shadow: inset 0 0 10px rgba(255, 0, 255, 0.2), 0 0 5px rgba(255, 0, 255, 0.3); border-color: rgba(255, 0, 255, 0.8); }
+            50% { box-shadow: inset 0 0 25px rgba(255, 0, 255, 0.5), 0 0 10px rgba(255, 0, 255, 0.6); border-color: rgba(255, 0, 255, 1); }
+        }
+        .v2g-engaged { 
+            animation: v2g-engaged-glow 1.5s ease-in-out infinite !important; 
+            background: rgba(255, 0, 255, 0.1) !important; 
+            z-index: 10;
+        }
+        
+        .v2g-ready { 
+            border: 1px dashed rgba(0, 255, 65, 0.6) !important; 
+            background: rgba(0, 255, 65, 0.05);
+        }
+        .v2g-offline {
+            border: 1px solid rgba(255, 255, 255, 0.05) !important;
+            opacity: 0.7;
+        }
+        
+        /* Ensure selection overrides/combines correctly */
+        .matrix-cell.selected.v2g-engaged {
+            box-shadow: 0 0 0 2px #ffd700, inset 0 0 20px rgba(255, 0, 255, 0.4) !important;
+            border-color: #ffd700 !important;
+        }
+        
+        .matrix-cell.selected.v2g-ready {
+            box-shadow: 0 0 0 1px #ffd700 !important;
+            border: 1px solid #ffd700 !important;
+            background: rgba(0, 255, 65, 0.1) !important;
+        }
+
+        /* Undo Button Styles */
+        @keyframes undo-slide-in {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .undo-active {
+            animation: undo-slide-in 0.3s ease-out;
+            border-color: #ffd700 !important;
+            color: #ffd700 !important;
+            background: rgba(255, 215, 0, 0.1) !important;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+        }
+
+        /* Simulation Specific */
+        .sim-grid-pixel { width: 4px; height: 4px; border-radius: 1px; transition: background 0.3s; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .undo-active {
+            animation: pulse-gold 1s infinite;
+            background: rgba(255, 215, 0, 0.1);
+            border-color: rgba(255, 215, 0, 0.5);
+        }
+        
+        @keyframes pulse-gold {
+            0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(255, 215, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); }
+        }
+
+        @keyframes fade-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 0.9; transform: translateY(0); } }
+        .animate-fadeIn { animation: fade-in 0.3s ease-out forwards; }
+
+        /* Fleet Summary Specific */
+        .fleet-summary-card {
+            background: linear-gradient(135deg, rgba(11, 18, 25, 0.9) 0%, rgba(3, 10, 18, 0.95) 100%);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(0, 242, 255, 0.1);
+        }
+    </style>
 </head>
-<body class="persona-standard">
-    <div id="ambient-bg">
-        <div class="glow-sphere"></div>
-        <div class="glow-sphere"></div>
-    </div>
-    <div id="toast-container"></div>
-
-    <div id="settings-modal-overlay" class="hidden modal-overlay">
-        <div id="settings-modal" class="modal-content glass">
-            <div class="modal-header">
-                <h2>Ustawienia 2026</h2>
-                <button id="close-settings-btn" class="close-btn">✕</button>
-            </div>
-            <button onclick="window.aistudio.openSelectKey()" class="action-btn-primary gold-btn">🔑 Zmień Klucz API (Premium Access)</button>
-            <p style="font-size: 0.7rem; margin: 10px 0; opacity: 0.7;">Wymagany klucz z bilingiem dla Veo/Pro: ai.google.dev/gemini-api/docs/billing</p>
-            <hr>
-            <button id="reset-chat-btn" class="action-btn-primary">Wyczyść Czat</button>
-        </div>
-    </div>
-
-    <div id="chat-container" class="glass">
-        <div id="chat-header">
-            <div class="logo-wrapper">
-                <h1 class="neon-logo">
-                    <span class="logo-adi">Adi</span>
-                    <span class="logo-pro">Pro</span>
-                    <span class="logo-ultimate">Ultimate 2026</span>
-                </h1>
-                <small class="est-label">Est. March 2025</small>
-            </div>
-            <select id="persona-selector">
-                <option value="standard">🤖 Standard 2026</option>
-                <option value="expert">🧠 Strategic</option>
-                <option value="artist">🎨 Visuals</option>
-                <option value="creative">✍️ Content</option>
-            </select>
-            <div class="header-controls">
-                <button id="settings-btn">⚙️</button>
+<body class="h-screen w-screen overflow-hidden">
+    <!-- LICENSE LOCKOUT OVERLAY -->
+    <div id="license-lockout" class="fixed inset-0 bg-black z-[1000] hidden flex-col items-center justify-center p-8 text-center">
+        <div class="w-24 h-24 border-4 border-adi-red flex items-center justify-center text-adi-red text-5xl font-black mb-8 animate-pulse">!</div>
+        <h2 class="text-3xl font-black text-white uppercase tracking-[0.2em] mb-4">System Locked</h2>
+        <div class="bg-adi-red/10 p-8 border border-adi-red/30 max-w-2xl">
+            <p id="lockout-message" class="text-xl text-adi-red font-bold uppercase tracking-widest">
+                Licencja nieważna lub nieautoryzowana – kontakt z właścicielem
+            </p>
+            <div class="mt-8 pt-8 border-t border-adi-red/20 flex flex-col gap-2">
+                <span class="text-[10px] text-gray-500 uppercase tracking-[0.4em]">Product: Adi Pro Ultimate 2026 Sovereign</span>
+                <span class="text-[10px] text-gray-500 uppercase tracking-[0.4em]">Owner: Ewelina Lesiak</span>
+                <span id="lockout-timestamp" class="text-[8px] text-gray-600 font-mono mt-4"></span>
             </div>
         </div>
-
-        <div id="smart-tools-bar">
-            <button id="search-toggle" class="tool-toggle"><span>🔍</span> Search</button>
-            <button id="maps-toggle" class="tool-toggle"><span>📍</span> Maps</button>
-            <button id="think-toggle" class="tool-toggle"><span>🧠</span> Think</button>
-            <button id="video-toggle" class="tool-toggle"><span>🎬</span> Video</button>
-            <div id="api-key-status" style="margin-left: auto;"></div>
-        </div>
-
-        <div id="messages-wrapper">
-            <div id="messages"></div>
-        </div>
-
-        <div id="attachment-preview" class="hidden">
-            <div id="preview-carousel"></div>
-        </div>
-
-        <div id="input-area">
-            <input type="file" id="media-input-hidden" style="display: none;" accept="image/*,video/*" multiple>
-            <div class="action-buttons-group">
-                <button id="attach-button" class="pastel-btn lavender" title="Załącz pliki">📎</button>
-            </div>
-            <div class="input-wrapper">
-                <input type="text" id="message-input" placeholder="W czym może Ci pomóc Adi Pro?">
-            </div>
-            <select id="img-size">
-                <option value="1K">1K</option>
-                <option value="2K" selected>2K</option>
-                <option value="4K">4K</option>
-            </select>
-            <button id="send-button" class="pastel-btn coral">Wyślij 🚀</button>
+        <div class="mt-12">
+            <button onclick="location.reload()" class="console-btn px-12 py-4 text-xs font-black text-adi-cyan border-adi-cyan/40 uppercase tracking-[0.3em]">
+                Retry Authentication
+            </button>
         </div>
     </div>
 
-    <script type="module" src="index.tsx"></script>
+    <div class="crt-container">
+        <div class="crt-scanlines"></div>
+        <div class="crt-vignette"></div>
+    </div>
+    
+    <div class="absolute inset-0 engineering-grid pointer-events-none"></div>
+
+    <!-- MODAL CONFIRMATION -->
+    <div id="confirm-modal-overlay" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] hidden items-center justify-center p-4">
+        <div id="confirm-modal" class="bg-adi-panel border border-adi-green w-full max-w-md p-8 rounded-sm shadow-2xl flex flex-col gap-10">
+            <div class="space-y-6">
+                <div class="flex items-center gap-6">
+                    <div class="w-14 h-14 border-4 border-adi-green flex items-center justify-center text-adi-green text-3xl font-black animate-pulse">!</div>
+                    <div>
+                        <h3 class="text-[14px] font-black text-white uppercase tracking-[0.2em]">Sovereign Auth Required</h3>
+                        <p class="text-[9px] text-adi-green/90 uppercase tracking-widest font-bold mt-1">Lattice Fusion: Offline Procedure</p>
+                    </div>
+                </div>
+                <div class="bg-adi-green/5 p-6 border-l-4 border-adi-green font-mono">
+                    <p class="text-[12px] text-white leading-relaxed font-bold uppercase tracking-tight">
+                        Confirm Local Lattice Fusion? All calculations processed on-device. 100% AIRGAP MODE.
+                    </p>
+                </div>
+            </div>
+            <div class="flex gap-4">
+                <button id="modal-cancel" class="console-btn flex-1 py-4 text-[10px] font-black uppercase text-gray-500">Cancel</button>
+                <button id="modal-confirm" class="console-btn flex-1 py-4 text-[10px] font-black uppercase text-adi-green border-adi-green/40 bg-adi-green/5">Execute Local</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SIMULATION TERMINAL MODAL -->
+    <div id="sim-modal-overlay" class="fixed inset-0 bg-black/95 backdrop-blur-xl z-[150] hidden flex-col p-8 overflow-hidden">
+        <div class="flex justify-between items-center border-b border-white/10 pb-4 mb-6">
+            <div>
+                <h2 class="text-2xl font-black text-adi-gold tracking-tighter">SOVEREIGN SIMULATION NODE <span class="text-[10px] text-adi-magenta ml-4 tracking-[0.4em] font-mono">V26_HEURISTIC_PROJECTION</span></h2>
+                <p class="text-[9px] text-gray-500 uppercase tracking-widest mt-1">Monte Carlo Lattice Evolution // Predictive Lifecycle Synth</p>
+            </div>
+            <button id="sim-close-btn" class="console-btn px-6 py-2 text-[10px] text-adi-red border-adi-red/40 uppercase font-black">Close Terminal</button>
+        </div>
+
+        <div class="grid grid-cols-12 gap-8 flex-1 min-h-0">
+            <!-- SIM CONTROLS -->
+            <div class="col-span-3 space-y-6 flex flex-col">
+                <div class="bg-white/5 p-6 rounded-sm space-y-4 border border-white/10">
+                    <div class="section-header">Simulation Parameters</div>
+                    
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-[9px] uppercase font-bold text-gray-400">
+                            <span>Fleet Scale (Nodes)</span>
+                            <span id="val-fleet-size" class="text-adi-cyan">128</span>
+                        </div>
+                        <input type="range" id="input-fleet-size" min="32" max="1024" step="32" value="128" class="w-full accent-adi-cyan">
+                    </div>
+
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-[9px] uppercase font-bold text-gray-400">
+                            <span>Projection Days</span>
+                            <span id="val-sim-days" class="text-adi-cyan">90</span>
+                        </div>
+                        <input type="range" id="input-sim-days" min="30" max="365" step="5" value="90" class="w-full accent-adi-cyan">
+                    </div>
+
+                    <div class="space-y-2">
+                        <div class="text-[9px] uppercase font-bold text-gray-400 mb-2">Heuristic Strategy</div>
+                        <select id="input-strategy" class="w-full bg-black border border-white/20 p-3 text-[10px] font-bold text-adi-magenta uppercase outline-none focus:border-adi-magenta">
+                            <option value="REACTIVE">Reactive (FX > 0.6)</option>
+                            <option value="PROACTIVE" selected>Proactive (FX > 0.2)</option>
+                            <option value="SOVEREIGN">Sovereign (AI Optimized)</option>
+                        </select>
+                    </div>
+
+                    <button id="sim-start-btn" class="console-btn w-full py-6 bg-adi-gold/10 border-adi-gold/40 text-adi-gold text-xs font-black tracking-widest uppercase mt-4">
+                        Initiate Heuristic Projection
+                    </button>
+                </div>
+
+                <div class="flex-1 bg-black/40 border border-white/5 rounded-sm p-4 overflow-y-auto scrollbar-hide font-mono text-[9px] space-y-2 text-gray-600" id="sim-log">
+                    <div class="text-adi-cyan">READY FOR SEQUENCE...</div>
+                </div>
+            </div>
+
+            <!-- SIM VISUALIZATION -->
+            <div class="col-span-9 flex flex-col gap-6 min-h-0">
+                <div class="flex-1 bg-black/20 border border-white/5 rounded-sm p-6 relative overflow-hidden flex flex-col">
+                    <div class="flex justify-between items-center mb-6">
+                        <div class="section-header">Fleet Evolution Matrix</div>
+                        <div class="flex gap-4 items-center">
+                            <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-adi-green"></span><span class="text-[7px] text-gray-500 uppercase font-bold">Healthy</span></div>
+                            <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-adi-gold"></span><span class="text-[7px] text-gray-500 uppercase font-bold">Warning</span></div>
+                            <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-adi-red"></span><span class="text-[7px] text-gray-500 uppercase font-bold">Critical</span></div>
+                        </div>
+                    </div>
+                    
+                    <!-- DENSE GRID OF PIXELS -->
+                    <div id="sim-pixel-grid" class="flex-1 flex flex-wrap gap-1 content-start overflow-hidden opacity-50"></div>
+
+                    <div class="h-64 mt-6 border-t border-white/10 pt-6" id="sim-chart-container">
+                        <!-- Projection Chart Root -->
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-4 gap-4">
+                    <div class="bg-white/5 border border-white/10 p-4 rounded-sm">
+                        <span class="text-[7px] text-gray-500 uppercase font-black tracking-widest block mb-1">Projected SOH</span>
+                        <span id="sim-res-soh" class="text-2xl font-black text-adi-green">-- %</span>
+                    </div>
+                    <div class="bg-white/5 border border-white/10 p-4 rounded-sm">
+                        <span class="text-[7px] text-gray-500 uppercase font-black tracking-widest block mb-1">Replacements Avoided</span>
+                        <span id="sim-res-avoided" class="text-2xl font-black text-adi-cyan">--</span>
+                    </div>
+                    <div class="bg-white/5 border border-white/10 p-4 rounded-sm">
+                        <span class="text-[7px] text-gray-500 uppercase font-black tracking-widest block mb-1">Estimated Savings (AUD)</span>
+                        <span id="sim-res-savings" class="text-2xl font-black text-adi-gold">--</span>
+                    </div>
+                    <div class="bg-white/5 border border-white/10 p-4 rounded-sm">
+                        <span class="text-[7px] text-gray-500 uppercase font-black tracking-widest block mb-1">Grid Arbitrage ROI</span>
+                        <span id="sim-res-roi" class="text-2xl font-black text-adi-magenta">-- %</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN INTERFACE -->
+    <div id="app-root" class="flex flex-col h-full p-6 gap-6 relative z-10">
+        <header class="flex justify-between items-end border-b border-white/10 pb-4">
+            <div>
+                <h1 class="text-3xl font-black tracking-tighter text-adi-cyan">ADI PRO <span class="text-white">ULTIMATE 2026 SOVEREIGN</span> <span class="text-[11px] text-adi-magenta font-mono tracking-widest ml-3 uppercase opacity-70">OS_v26.55_AIRGAP_PURE</span></h1>
+                <div class="flex items-center gap-4 mt-2">
+                    <span class="text-[10px] text-gray-500 font-mono tracking-[0.3em] uppercase">
+                        NODE_STATION: LOCAL_G7 // IDENTITY: AUTONOMOUS_OFFLINE
+                    </span>
+                    <span class="airgap-badge">● AIR-GAP: SECURE_PURE</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-8">
+                <button id="open-sim-btn" class="console-btn px-6 py-2 bg-adi-gold/5 border-adi-gold/30 text-adi-gold text-[10px] font-black uppercase tracking-widest hover:bg-adi-gold/20 transition-all">
+                    Fleet Simulation
+                </button>
+                <div class="text-right">
+                    <span class="text-[10px] text-gray-500 block uppercase font-bold tracking-widest mb-1 opacity-50">Local Fleet Integrity</span>
+                    <div id="soh-indicator" class="text-3xl font-black text-adi-green tabular-nums">100.0%</div>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-12 gap-6 flex-1 min-h-0">
+            <!-- LEFT COLUMN: STATS & MATRIX -->
+            <div class="col-span-3 flex flex-col gap-6 min-h-0">
+                <!-- NEW SECTION: FLEET HEALTH SUMMARY -->
+                <div id="fleet-summary-container" class="fleet-summary-card rounded-sm overflow-hidden p-5 min-h-[180px] flex flex-col justify-between text-xs font-mono relative">
+                    <!-- Dynamic content rendered via index.tsx renderFleetSummary() -->
+                    <div class="animate-pulse flex flex-col gap-4">
+                        <div class="h-4 w-2/3 bg-white/5 rounded"></div>
+                        <div class="h-10 w-full bg-white/5 rounded"></div>
+                        <div class="h-8 w-full bg-white/5 rounded"></div>
+                    </div>
+                </div>
+
+                <!-- BANK MATRIX -->
+                <div class="flex flex-col bg-adi-panel/40 border border-white/5 rounded-sm overflow-hidden flex-[1.5] min-h-0">
+                    <div class="p-3 border-b border-white/10 bg-black/40 flex justify-between items-center">
+                        <span class="text-[11px] font-bold text-adi-cyan uppercase tracking-widest">Bank Matrix [32]</span>
+                        <span id="avg-voltage" class="text-[9px] text-adi-green/60 font-mono">3.92V_OFFLINE</span>
+                    </div>
+                    <div id="bank-matrix" class="grid grid-cols-4 gap-1 p-2 overflow-y-auto content-start flex-1 scrollbar-hide"></div>
+                </div>
+                
+                <!-- FACTOR X CHART -->
+                <div class="flex flex-col bg-adi-panel/40 border border-white/5 rounded-sm overflow-hidden flex-1 min-h-0">
+                    <div class="p-3 border-b border-white/10 bg-black/40 flex justify-between items-center">
+                        <span class="text-[11px] font-bold text-adi-gold uppercase tracking-widest">Factor X Trend [LOCAL]</span>
+                    </div>
+                    <div id="fx-chart-root" class="flex-1 p-2 bg-black/20"></div>
+                </div>
+
+                <!-- DIAGNOSTICS & FILTERS (Moved from Center) -->
+                <div class="flex flex-col bg-adi-panel/40 border border-white/5 rounded-sm overflow-hidden p-3 space-y-3">
+                    <div class="flex justify-between items-center border-b border-white/10 pb-2">
+                        <span class="text-[10px] font-black text-adi-cyan uppercase tracking-widest">Diagnostics & Filters</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="scan-fft-btn" class="console-btn py-2 text-adi-cyan text-[8px] font-bold uppercase">
+                            <span>Local FFT Scan</span>
+                        </button>
+                        <button id="isotope-btn" class="console-btn py-2 text-adi-teal text-[8px] font-bold uppercase">
+                            <span>Isotope Map</span>
+                        </button>
+                        <button id="stress-btn" class="console-btn py-2 text-adi-red text-[8px] font-bold uppercase">
+                            <span>Stress Test</span>
+                        </button>
+                        <button id="predict-btn" class="console-btn py-2 text-adi-gold text-[8px] font-bold uppercase">
+                            <span>Predict Health</span>
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1">
+                        <button id="filter-all-btn" class="console-btn py-1 text-white text-[7px] font-bold uppercase bg-white/5">
+                            <span>All</span>
+                        </button>
+                        <button id="filter-regen-btn" class="console-btn py-1 text-adi-red text-[7px] font-bold uppercase border-adi-red/20">
+                            <span>Regen</span>
+                        </button>
+                        <button id="filter-v2g-btn" class="console-btn py-1 text-adi-cyan text-[7px] font-bold uppercase border-adi-cyan/20">
+                            <span>V2G</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- OFFLINE UTILITY -->
+                <div class="flex flex-col bg-adi-panel/40 border border-white/5 rounded-sm overflow-hidden p-3 space-y-3">
+                    <div class="flex justify-between items-center border-b border-white/10 pb-2">
+                        <span class="text-[10px] font-black text-adi-gold uppercase tracking-widest">Offline Utility</span>
+                    </div>
+                    <div class="grid grid-cols-1 gap-2">
+                        <button id="v2g-sync-btn" class="console-btn py-2 text-adi-gold text-[8px] font-bold uppercase">
+                            <span>V2G Local Sync</span>
+                        </button>
+                        <button id="equity-btn" class="console-btn py-2 text-white/40 text-[8px] font-bold uppercase">
+                            <span>Equity Guard</span>
+                        </button>
+                        <button id="undo-btn" class="console-btn py-2 text-adi-gold text-[8px] font-bold uppercase hidden">
+                            <span>Undo Repair</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CENTER COLUMN: CORE & CONTROLS -->
+            <div class="col-span-6 flex flex-col bg-adi-panel/40 border border-white/5 rounded-sm overflow-hidden relative">
+                <div class="p-4 border-b border-white/10 text-center bg-black/40 flex justify-between items-center px-6">
+                    <span class="text-[12px] font-black text-adi-cyan uppercase tracking-[0.6em]">Hadron Heuristic Core [SOVEREIGN]</span>
+                    <span class="text-[9px] text-adi-teal font-mono animate-pulse">RESONANCE: 7.42Hz_LOCAL</span>
+                </div>
+                
+                <div class="flex-1 flex flex-col items-stretch p-0 relative min-h-0">
+                    <div class="collider-stage flex-1 relative">
+                        <div id="voltage-chart-root"></div>
+                        <div id="oscilloscope-root">
+                            <canvas id="osc-canvas" class="w-full h-full"></canvas>
+                        </div>
+                        
+                        <canvas id="hadron-canvas"></canvas>
+                        <div class="central-core-wrapper">
+                            <div id="fusion-gauge-fill" class="fusion-gauge-fill"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: LOGS & HISTORY -->
+            <div class="col-span-3 flex flex-col gap-6 min-h-0">
+                <div class="flex flex-col bg-adi-panel/40 border border-white/5 rounded-sm overflow-hidden h-[40%]">
+                    <div class="p-3 border-b border-white/10 bg-black/40 flex justify-between items-center">
+                        <div class="flex gap-4">
+                            <button id="tab-history" class="text-[11px] font-bold text-adi-magenta uppercase tracking-widest border-b-2 border-adi-magenta pb-1 transition-all">History</button>
+                            <button id="tab-tasks" class="text-[11px] font-bold text-gray-500 uppercase tracking-widest pb-1 hover:text-adi-cyan transition-all border-b-2 border-transparent">Tasks</button>
+                            <button id="tab-alerts" class="text-[11px] font-bold text-gray-500 uppercase tracking-widest pb-1 hover:text-adi-red transition-all border-b-2 border-transparent relative">
+                                Alerts
+                                <span id="alert-badge" class="absolute -top-1 -right-2 bg-adi-red text-black text-[6px] font-black px-1 rounded-full hidden">0</span>
+                            </button>
+                            <button id="tab-analytics" class="text-[11px] font-bold text-gray-500 uppercase tracking-widest pb-1 hover:text-adi-teal transition-all border-b-2 border-transparent">Analytics</button>
+                            <button id="tab-ai" class="text-[11px] font-bold text-gray-500 uppercase tracking-widest pb-1 hover:text-adi-gold transition-all border-b-2 border-transparent">AI Core</button>
+                        </div>
+                        
+                        <div id="history-controls">
+                            <button id="toggle-history-mode" class="text-[9px] border border-adi-magenta/30 px-3 py-1 rounded-sm text-adi-magenta font-bold uppercase hover:bg-adi-magenta/10">Fleet</button>
+                        </div>
+                        
+                        <div id="analytics-controls" class="hidden">
+                            <span class="text-[9px] text-adi-teal font-bold uppercase tracking-widest">Regen Effectiveness</span>
+                        </div>
+                        
+                        <div id="ai-controls" class="hidden">
+                            <span class="text-[9px] text-adi-gold font-bold uppercase tracking-widest">Sovereign AI Node</span>
+                        </div>
+                        
+                        <div id="task-controls" class="hidden flex items-center gap-2">
+                            <button id="undo-task-btn" class="hidden text-[9px] border border-adi-gold/30 px-2 py-1 rounded-sm text-adi-gold font-bold uppercase hover:bg-adi-gold/10 animate-pulse">Undo</button>
+                            <div class="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-sm border border-white/10">
+                                <span class="text-[8px] text-gray-500 uppercase font-bold">Sort:</span>
+                                <select id="task-sort-select" class="bg-transparent text-[9px] text-adi-cyan font-bold uppercase outline-none cursor-pointer">
+                                    <option value="TIME" class="bg-adi-panel">Date</option>
+                                    <option value="PRIORITY_HIGH" class="bg-adi-panel">Prio (HI)</option>
+                                    <option value="PRIORITY_LOW" class="bg-adi-panel">Prio (LO)</option>
+                                </select>
+                            </div>
+                            <button id="add-task-btn" class="text-[9px] border border-adi-green/30 px-2 py-1 rounded-sm text-adi-green font-bold uppercase hover:bg-adi-green/10">+ New</button>
+                        </div>
+
+                        <div id="alert-controls" class="hidden">
+                            <button id="clear-alerts-btn" class="text-[9px] border border-adi-red/30 px-3 py-1 rounded-sm text-adi-red font-bold uppercase hover:bg-adi-red/10">Acknowledge All</button>
+                        </div>
+                    </div>
+                    
+                    <div id="repair-history-container" class="flex-1 p-4 font-mono text-[10px] overflow-y-auto space-y-4 bg-black/20"></div>
+                    
+                    <div id="alerts-container" class="hidden flex-1 p-4 font-mono text-[10px] overflow-y-auto space-y-2 bg-black/20 relative">
+                        <div id="alerts-list" class="space-y-2"></div>
+                        <div id="no-alerts-msg" class="text-center py-12 opacity-20 italic uppercase text-[10px] tracking-widest">No active system alerts</div>
+                    </div>
+                    
+                    <div id="analytics-container" class="hidden flex-1 p-4 bg-black/20 relative flex flex-col space-y-4 overflow-y-auto">
+                        <div class="flex justify-between items-center bg-white/5 p-2 rounded-sm border border-white/10">
+                            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Regeneration Metrics</span>
+                            <div class="flex gap-1">
+                                <button class="analytics-metric-btn text-[8px] font-bold px-2 py-1 rounded-[1px] bg-adi-magenta text-black uppercase" data-metric="FX">Entropy (FX)</button>
+                                <button class="analytics-metric-btn text-[8px] font-bold px-2 py-1 rounded-[1px] bg-transparent text-gray-500 border border-white/10 hover:text-white uppercase" data-metric="VOLTAGE">Voltage</button>
+                                <button class="analytics-metric-btn text-[8px] font-bold px-2 py-1 rounded-[1px] bg-transparent text-gray-500 border border-white/10 hover:text-white uppercase" data-metric="TEMP">Temp</button>
+                            </div>
+                        </div>
+
+                        <div id="analytics-summary" class="grid grid-cols-3 gap-2 mb-2">
+                            <div class="bg-black/40 border border-white/5 p-2 rounded-sm text-center">
+                                <span class="block text-[6px] text-gray-500 uppercase tracking-widest mb-1">Avg Health Gain</span>
+                                <span id="stat-avg-gain" class="text-xs font-black text-adi-green tabular-nums">+0.0%</span>
+                            </div>
+                            <div class="bg-black/40 border border-white/5 p-2 rounded-sm text-center">
+                                <span class="block text-[6px] text-gray-500 uppercase tracking-widest mb-1">Total Regens</span>
+                                <span id="stat-total-regens" class="text-xs font-black text-adi-magenta tabular-nums">0</span>
+                            </div>
+                            <div class="bg-black/40 border border-white/5 p-2 rounded-sm text-center">
+                                <span class="block text-[6px] text-gray-500 uppercase tracking-widest mb-1">Success Rate</span>
+                                <span id="stat-success-rate" class="text-xs font-black text-adi-cyan tabular-nums">0%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex-1 min-h-[160px] flex flex-col">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-[7px] text-adi-teal font-bold uppercase tracking-widest">Pre vs Post Health</span>
+                                <span class="text-[6px] text-gray-500 uppercase tracking-widest">Last 10 Cycles</span>
+                            </div>
+                            <div id="regen-chart-root" class="flex-1 min-h-0"></div>
+                        </div>
+
+                        <div class="flex-1 min-h-[160px] flex flex-col border-t border-white/5 pt-4">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-[7px] text-adi-magenta font-bold uppercase tracking-widest">Recovery Effectiveness Trend</span>
+                                <span class="text-[6px] text-gray-500 uppercase tracking-widest">Health Delta %</span>
+                            </div>
+                            <div id="trend-chart-root" class="flex-1 min-h-0"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="ai-container" class="hidden flex-1 p-4 bg-black/20 relative flex flex-col space-y-4 overflow-y-auto">
+                        <div class="flex-1 bg-black/40 border border-white/5 rounded-sm p-4 overflow-y-auto font-mono text-[10px] space-y-3 text-gray-400" id="ai-chat-log">
+                            <div class="text-adi-gold">SOVEREIGN AI KERNEL ONLINE. WAITING FOR INPUT...</div>
+                        </div>
+                        <div class="flex gap-2">
+                            <input type="text" id="ai-input" placeholder="ENTER QUERY..." class="flex-1 bg-black border border-white/20 p-2 text-white text-[10px] outline-none focus:border-adi-gold uppercase font-mono">
+                            <button id="ai-send-btn" class="console-btn bg-adi-gold/20 text-adi-gold border border-adi-gold/40 px-4 py-2 text-[10px] font-bold uppercase hover:bg-adi-gold/30">Send</button>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="ai-gen-img-btn" class="console-btn bg-adi-cyan/10 text-adi-cyan border border-adi-cyan/30 py-2 text-[9px] font-bold uppercase hover:bg-adi-cyan/20">Generate Image</button>
+                            <button id="ai-gen-vid-btn" class="console-btn bg-adi-magenta/10 text-adi-magenta border border-adi-magenta/30 py-2 text-[9px] font-bold uppercase hover:bg-adi-magenta/20">Generate Video (Veo)</button>
+                        </div>
+                    </div>
+
+                    <div id="task-list-container" class="hidden flex-1 p-4 font-mono text-[10px] overflow-y-auto space-y-2 bg-black/20 relative">
+                        <!-- Task Input Form (Hidden by default) -->
+                        <div id="new-task-form" class="hidden mb-4 p-3 bg-white/5 border border-white/10 rounded-sm space-y-2">
+                            <input type="text" id="new-task-desc" placeholder="PROTOCOL_DESC..." class="w-full bg-black border border-white/20 p-2 text-white text-[9px] outline-none focus:border-adi-cyan uppercase">
+                            <div class="flex gap-2">
+                                <select id="new-task-priority" class="bg-black border border-white/20 p-1 text-[9px] text-gray-400 outline-none focus:border-adi-cyan uppercase flex-1">
+                                    <option value="LOW">Low Priority</option>
+                                    <option value="MEDIUM">Medium Priority</option>
+                                    <option value="HIGH">High Priority</option>
+                                </select>
+                                <button id="save-task-btn" class="bg-adi-green/20 text-adi-green border border-adi-green/40 px-3 py-1 text-[9px] font-bold uppercase hover:bg-adi-green/30">Save</button>
+                            </div>
+                        </div>
+                        <div id="tasks-list" class="space-y-2"></div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col bg-adi-panel/40 border border-white/5 rounded-sm overflow-hidden flex-1">
+                    <div class="p-3 border-b border-white/10 bg-black/40">
+                        <span class="text-[11px] font-bold text-adi-cyan uppercase tracking-widest">Local Logic Trace [SHE]</span>
+                    </div>
+                    <div id="log-container" class="flex-1 p-4 font-mono text-[10px] overflow-y-auto space-y-2 text-gray-400 bg-black/20"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SYSTEM INTERVENTION CONTROLS -->
+        <div class="bg-adi-panel/60 border border-white/10 rounded-sm p-4 mt-2">
+            <div class="flex items-center justify-between gap-6">
+                <div class="flex-1 flex gap-3">
+                    <button id="repair-btn" class="console-btn flex-[2] h-12 text-adi-green text-[12px] font-black tracking-[0.2em] uppercase bg-adi-green/5 border-adi-green/30">
+                        <div class="btn-viz viz-repair"></div>
+                        <span>Hadron Repair Pulse</span>
+                    </button>
+                    <button id="deep-pulse-btn" class="console-btn flex-1 text-adi-magenta text-[9px] font-black uppercase">
+                        <span>Deep Pulse</span>
+                    </button>
+                    <button id="bank-history-btn" class="console-btn flex-1 text-adi-cyan text-[9px] font-black uppercase">
+                        <span>History</span>
+                    </button>
+                    <button id="bms-reset-btn" class="console-btn flex-1 text-adi-magenta text-[8px] font-black uppercase">
+                        <span>Reset</span>
+                    </button>
+                    <button id="purge-btn" class="console-btn flex-1 border border-adi-red/40 text-adi-red text-[8px] font-black uppercase hover:bg-adi-red/10">
+                        <span>Lattice Purge</span>
+                    </button>
+                </div>
+                
+                <div class="flex gap-6 font-mono bg-black/60 px-6 py-3 border border-white/10 rounded-sm shadow-inner">
+                    <div class="text-center"><span class="block text-[7px] text-adi-cyan/40 uppercase font-black mb-1">Node</span><span id="target-label" class="text-[12px] text-adi-magenta font-black">B--</span></div>
+                    <div class="text-center"><span class="block text-[7px] text-adi-gold/40 uppercase font-black mb-1">Sync</span><span id="grid-status" class="text-[12px] text-adi-gold font-black">OFF</span></div>
+                    <div class="text-center"><span class="block text-[7px] text-adi-teal/40 uppercase font-black mb-1">Wave</span><span id="wave-status" class="text-[12px] text-adi-teal font-black">NOM</span></div>
+                    <div class="text-center"><span class="block text-[7px] text-adi-cyan/40 uppercase font-black mb-1">Proc</span><span id="fusion-percent" class="text-[12px] text-adi-cyan font-black">0%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="flex justify-between items-center border-t border-white/5 pt-4 mt-auto">
+            <div class="text-[8px] text-gray-600 font-mono uppercase tracking-[0.3em]">
+                System Status: Sovereign // Core: Stable // Encryption: Active // Owner: E. Lesiak
+            </div>
+            <div class="text-[9px] text-adi-cyan/60 font-black uppercase tracking-widest">
+                © 2025-2026 Ewelina Lesiak AI Systems. Własność wyłączna. Kradzież lub użycie bez zgody będzie ścigane prawnie.
+            </div>
+        </footer>
+    </div>
+
+    <!-- BANK HISTORY MODAL -->
+    <div id="bank-history-modal" class="fixed inset-0 bg-black/95 z-[60] hidden flex items-center justify-center backdrop-blur-md">
+        <div class="bg-adi-panel border border-adi-cyan/30 p-8 rounded-sm max-w-3xl w-full shadow-[0_0_50px_rgba(0,242,255,0.1)] relative">
+            <button id="bank-history-close" class="absolute top-4 right-4 text-gray-500 hover:text-white">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            
+            <div class="flex justify-between items-end mb-6 border-b border-white/10 pb-4">
+                <div>
+                    <h2 class="text-2xl font-black text-white tracking-tighter uppercase mb-1">Bank Repair History</h2>
+                    <div class="text-[10px] text-adi-cyan font-mono tracking-widest uppercase">Bank ID: <span id="history-bank-id" class="text-white">--</span> // Total Repairs: <span id="history-repair-count" class="text-white">--</span></div>
+                </div>
+                <div class="text-right">
+                    <div class="text-[8px] text-gray-500 uppercase font-bold tracking-widest mb-1">Fleet Node Status</div>
+                    <div class="text-xl font-black text-adi-green uppercase tracking-tighter">Verified</div>
+                </div>
+            </div>
+
+            <div id="bank-history-content" class="grid grid-cols-1 gap-4 max-h-[60vh] overflow-y-auto pr-2 scrollbar-hide">
+                <!-- History entries will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- CELL REGEN HISTORY MODAL -->
+    <div id="cell-regen-modal" class="fixed inset-0 bg-black/95 z-[60] hidden flex items-center justify-center backdrop-blur-md">
+        <div class="bg-adi-panel border border-adi-magenta/30 p-8 rounded-sm max-w-3xl w-full shadow-[0_0_50px_rgba(255,0,255,0.1)] relative">
+            <button id="cell-regen-close" class="absolute top-4 right-4 text-gray-500 hover:text-white">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            
+            <div class="flex justify-between items-end mb-6 border-b border-white/10 pb-4">
+                <div>
+                    <h2 class="text-2xl font-black text-white tracking-tighter uppercase mb-1">Regen Effectiveness</h2>
+                    <div class="text-[10px] text-adi-magenta font-mono tracking-widest uppercase">Cell ID: <span id="regen-cell-id" class="text-white">--</span> // Bank: <span id="regen-bank-id" class="text-white">--</span></div>
+                </div>
+                <div class="text-right">
+                    <div class="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">Total Cycles</div>
+                    <div id="regen-cycle-count" class="text-xl font-black text-adi-cyan uppercase tracking-tighter">0</div>
+                </div>
+            </div>
+
+            <div id="regen-history-content" class="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                <!-- History entries rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- CELL INSPECTOR MODAL -->
+    <div id="cell-inspector-modal" class="fixed inset-0 bg-black/90 z-50 hidden flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-adi-panel border border-adi-cyan/30 p-8 rounded-sm max-w-2xl w-full shadow-[0_0_50px_rgba(0,242,255,0.1)] relative">
+            <button id="cell-inspector-close" class="absolute top-4 right-4 text-gray-500 hover:text-white">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            
+            <div class="flex justify-between items-end mb-6 border-b border-white/10 pb-4">
+                <div>
+                    <h2 class="text-2xl font-black text-white tracking-tighter uppercase mb-1">Cell Inspector</h2>
+                    <div class="text-[10px] text-adi-cyan font-mono tracking-widest uppercase">Bank ID: <span id="inspector-bank-id" class="text-white">--</span> // Voltage: <span id="inspector-bank-voltage" class="text-white">--</span>V</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">Status</div>
+                    <div id="inspector-bank-status" class="text-xl font-black text-adi-green uppercase tracking-tighter">STABLE</div>
+                    <div id="inspector-failure-container" class="hidden mt-2 text-right">
+                        <div class="text-[7px] text-gray-500 font-bold uppercase tracking-widest mb-0.5">Predicted Failure</div>
+                        <div id="inspector-failure-date" class="text-[10px] font-black text-adi-red tabular-nums tracking-widest">--</div>
+                        <div class="text-[7px] text-gray-500 font-bold uppercase tracking-widest mt-2 mb-0.5">Failure Probability</div>
+                        <div id="inspector-failure-prob" class="text-[10px] font-black text-adi-magenta tabular-nums tracking-widest">--%</div>
+                        <div class="text-[7px] text-gray-500 font-bold uppercase tracking-widest mt-2 mb-0.5">Degradation Rate</div>
+                        <div id="inspector-degradation-rate" class="text-[10px] font-black text-adi-gold tabular-nums tracking-widest">--%/tick</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-4 gap-4 mb-6" id="cell-grid">
+                <!-- Cells rendered here -->
+            </div>
+
+            <div class="flex justify-between items-center bg-white/5 p-3 rounded-sm border border-white/5">
+                <div class="text-[9px] text-gray-400 font-mono uppercase tracking-widest flex items-center">
+                    <span class="text-adi-red font-bold mr-1">●</span> CRITICAL <span class="mx-2 opacity-30">|</span> 
+                    <span class="text-adi-gold font-bold mr-1">●</span> WEAK <span class="mx-2 opacity-30">|</span> 
+                    <span class="text-adi-green font-bold mr-1">●</span> GOOD
+                </div>
+                <button id="regen-cells-btn" class="bg-adi-cyan/10 border border-adi-cyan/50 text-adi-cyan px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-adi-cyan/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                    Regenerate Selected
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>
