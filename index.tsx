@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import { QRCodeCanvas } from "qrcode.react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { Analytics } from "@vercel/analytics/react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, AreaChart, Area, BarChart, Bar, Legend } from "recharts";
 
@@ -3939,7 +3940,12 @@ if (aiInput) {
 
 // --- VERCEL ANALYTICS INITIALIZATION ---
 const AnalyticsWrapper: React.FC = () => {
-    return <Analytics />;
+    return (
+        <>
+            <Analytics />
+            <SpeedInsights />
+        </>
+    );
 };
 
 // Mount Vercel Analytics to the body
