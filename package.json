@@ -32,6 +32,7 @@
   "dependencies": {
     "@google/genai": "^1.45.0",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "@vitejs/plugin-react": "^5.1.4",
     "d3": "^7.9.0",
     "express": "^5.2.1",
