@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import { QRCodeCanvas } from "qrcode.react";
+import { Analytics } from "@vercel/analytics/react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, AreaChart, Area, BarChart, Bar, Legend } from "recharts";
 
 // --- GLOBAL ERROR HANDLER ---
@@ -3935,3 +3936,15 @@ if (aiInput) {
 
 // Auto-open cell inspector removed to show main system panel on load
 
+
+// --- VERCEL ANALYTICS INITIALIZATION ---
+const AnalyticsWrapper: React.FC = () => {
+    return <Analytics />;
+};
+
+// Mount Vercel Analytics to the body
+const vercelAnalyticsContainer = document.createElement('div');
+vercelAnalyticsContainer.id = 'vercel-analytics-root';
+document.body.appendChild(vercelAnalyticsContainer);
+const vercelAnalyticsRoot = createRoot(vercelAnalyticsContainer);
+vercelAnalyticsRoot.render(<AnalyticsWrapper />);
