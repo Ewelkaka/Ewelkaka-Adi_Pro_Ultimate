@@ -210,22 +210,55 @@
         @keyframes pulse-airgap { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
         @keyframes v2g-engaged-glow {
-            0%, 100% { box-shadow: inset 0 0 10px rgba(255, 0, 255, 0.2), 0 0 5px rgba(255, 0, 255, 0.3); border-color: rgba(255, 0, 255, 0.8); }
-            50% { box-shadow: inset 0 0 25px rgba(255, 0, 255, 0.5), 0 0 10px rgba(255, 0, 255, 0.6); border-color: rgba(255, 0, 255, 1); }
+            0%, 100% { box-shadow: 0 0 10px rgba(255, 0, 255, 0.3), inset 0 0 15px rgba(255, 0, 255, 0.2); border-color: rgba(255, 0, 255, 0.6); background: rgba(255, 0, 255, 0.15); }
+            50% { box-shadow: 0 0 30px rgba(255, 0, 255, 0.8), inset 0 0 30px rgba(255, 0, 255, 0.5); border-color: rgba(255, 0, 255, 1); background: rgba(255, 0, 255, 0.3); }
         }
         .v2g-engaged { 
-            animation: v2g-engaged-glow 1.5s ease-in-out infinite !important; 
-            background: rgba(255, 0, 255, 0.1) !important; 
+            animation: v2g-engaged-glow 2s ease-in-out infinite !important; 
             z-index: 10;
+            border-width: 1px !important;
         }
         
         .v2g-ready { 
-            border: 1px dashed rgba(0, 255, 65, 0.6) !important; 
-            background: rgba(0, 255, 65, 0.05);
+            border: 1px solid rgba(0, 255, 65, 0.3) !important; 
+            background: rgba(0, 255, 65, 0.08) !important;
+            box-shadow: inset 0 0 15px rgba(0, 255, 65, 0.1);
         }
         .v2g-offline {
-            border: 1px solid rgba(255, 255, 255, 0.05) !important;
-            opacity: 0.7;
+            border: 1px solid rgba(255, 51, 51, 0.2) !important;
+            background: rgba(255, 51, 51, 0.08) !important;
+            opacity: 0.5;
+        }
+
+        /* AI Suggestions */
+        #ai-suggestions {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            right: 0;
+            background: rgba(11, 18, 25, 0.98);
+            border: 1px solid rgba(255, 215, 0, 0.4);
+            border-bottom: none;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
+        }
+        .suggestion-item {
+            padding: 8px 12px;
+            font-size: 11px;
+            color: #ffd700;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            text-transform: uppercase;
+            font-family: 'JetBrains Mono', monospace;
+            transition: all 0.1s ease;
+        }
+        .suggestion-item:hover, .suggestion-item.bg-adi-gold\/20 {
+            background: rgba(255, 215, 0, 0.2) !important;
+            color: #ffffff;
+            padding-left: 16px;
         }
         
         /* Ensure selection overrides/combines correctly */
@@ -238,6 +271,12 @@
             box-shadow: 0 0 0 1px #ffd700 !important;
             border: 1px solid #ffd700 !important;
             background: rgba(0, 255, 65, 0.1) !important;
+        }
+
+        .matrix-cell.selected.v2g-offline {
+            box-shadow: 0 0 0 1px #ffd700 !important;
+            border: 1px solid #ffd700 !important;
+            background: rgba(255, 51, 51, 0.1) !important;
         }
 
         /* Undo Button Styles */
@@ -303,6 +342,30 @@
         </div>
     </div>
 
+    <!-- QR CODE MODAL -->
+    <div id="qr-modal-overlay" class="fixed inset-0 bg-black/90 backdrop-blur-xl z-[200] hidden items-center justify-center p-4">
+        <div class="bg-adi-panel border border-adi-cyan w-full max-w-sm p-8 rounded-sm shadow-2xl flex flex-col items-center gap-8">
+            <div class="text-center">
+                <h3 class="text-[14px] font-black text-adi-cyan uppercase tracking-[0.2em]">System Access Node</h3>
+                <p class="text-[8px] text-gray-500 uppercase tracking-widest mt-1">Sovereign Identity // Local G7</p>
+            </div>
+            
+            <div id="qr-container" class="p-4 bg-white rounded-sm">
+                <!-- QR Code will be rendered here -->
+            </div>
+
+            <div class="bg-adi-cyan/5 p-4 border border-adi-cyan/20 w-full text-center">
+                <p class="text-[10px] text-white font-mono uppercase tracking-tight break-all" id="qr-url-display"></p>
+            </div>
+
+            <div class="flex flex-col gap-4 w-full">
+                <button id="qr-download-btn" class="console-btn w-full py-3 text-[10px] font-black uppercase text-adi-green border-adi-green/40 bg-adi-green/5">Download QR Image</button>
+                <button id="docs-download-btn" class="console-btn w-full py-3 text-[10px] font-black uppercase text-adi-magenta border-adi-magenta/40 bg-adi-magenta/5 hidden">Download Tech Documentation</button>
+                <button id="qr-close-btn" class="console-btn w-full py-3 text-[10px] font-black uppercase text-adi-red border-adi-red/40 bg-adi-red/5">Close</button>
+            </div>
+        </div>
+    </div>
+
     <div class="crt-container">
         <div class="crt-scanlines"></div>
         <div class="crt-vignette"></div>
@@ -322,7 +385,7 @@
                     </div>
                 </div>
                 <div class="bg-adi-green/5 p-6 border-l-4 border-adi-green font-mono">
-                    <p class="text-[12px] text-white leading-relaxed font-bold uppercase tracking-tight">
+                    <p id="modal-risk-text" class="text-[12px] text-white leading-relaxed font-bold uppercase tracking-tight">
                         Confirm Local Lattice Fusion? All calculations processed on-device. 100% AIRGAP MODE.
                     </p>
                 </div>
@@ -330,6 +393,32 @@
             <div class="flex gap-4">
                 <button id="modal-cancel" class="console-btn flex-1 py-4 text-[10px] font-black uppercase text-gray-500">Cancel</button>
                 <button id="modal-confirm" class="console-btn flex-1 py-4 text-[10px] font-black uppercase text-adi-green border-adi-green/40 bg-adi-green/5">Execute Local</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI CORE REPORT MODAL -->
+    <div id="ai-modal-overlay" class="fixed inset-0 bg-black/95 backdrop-blur-xl z-[150] hidden flex-col p-2 overflow-hidden">
+        <div class="flex justify-between items-center border-b border-white/10 pb-2 mb-2">
+            <div>
+                <h2 class="text-xl font-black text-adi-gold tracking-tighter">SOVEREIGN AI KERNEL <span class="text-[9px] text-adi-magenta ml-2 tracking-[0.2em] font-mono">REPORTING_INTERFACE</span></h2>
+                <p class="text-[8px] text-gray-500 uppercase tracking-widest mt-0.5">Advanced Diagnostics // Generative Analysis</p>
+            </div>
+            <button id="ai-close-btn" class="console-btn px-4 py-1 text-[9px] text-adi-red border-adi-red/40 uppercase font-black">Close Terminal</button>
+        </div>
+
+        <div id="ai-container" class="flex-1 bg-black/20 relative flex flex-col space-y-2 overflow-y-auto">
+            <div class="flex-1 bg-black/40 border border-white/5 rounded-sm p-4 overflow-y-auto font-mono text-[14px] space-y-2 text-gray-400" id="ai-chat-log">
+                <div class="text-adi-gold">SOVEREIGN AI KERNEL ONLINE. WAITING FOR INPUT...</div>
+            </div>
+            <div class="flex gap-2 relative">
+                <div id="ai-suggestions" class="custom-scrollbar"></div>
+                <input type="text" id="ai-input" placeholder="ENTER QUERY..." class="flex-1 bg-black border border-white/20 p-2 text-white text-[12px] outline-none focus:border-adi-gold uppercase font-mono" autocomplete="off">
+                <button id="ai-send-btn" class="console-btn bg-adi-gold/20 text-adi-gold border border-adi-gold/40 px-4 py-2 text-[12px] font-bold uppercase hover:bg-adi-gold/30">Send</button>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="ai-gen-img-btn" class="console-btn bg-adi-cyan/10 text-adi-cyan border border-adi-cyan/30 py-2 text-[10px] font-bold uppercase hover:bg-adi-cyan/20">Generate Image</button>
+                <button id="ai-gen-vid-btn" class="console-btn bg-adi-magenta/10 text-adi-magenta border border-adi-magenta/30 py-2 text-[10px] font-bold uppercase hover:bg-adi-magenta/20">Generate Video (Veo)</button>
             </div>
         </div>
     </div>
@@ -440,8 +529,22 @@
                 </div>
             </div>
             <div class="flex items-center gap-8">
+                <div id="header-v2g-summary" class="flex gap-4 border-r border-white/10 pr-8">
+                    <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-adi-magenta animate-pulse"></span><span id="header-v2g-engaged" class="text-[9px] text-adi-magenta font-black">0</span></div>
+                    <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-adi-green"></span><span id="header-v2g-ready" class="text-[9px] text-adi-green font-black">0</span></div>
+                    <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-adi-red"></span><span id="header-v2g-offline" class="text-[9px] text-adi-red font-black">0</span></div>
+                </div>
+                <button id="open-qr-btn" class="console-btn px-6 py-2 bg-adi-cyan/5 border-adi-cyan/30 text-adi-cyan text-[10px] font-black uppercase tracking-widest hover:bg-adi-cyan/20 transition-all">
+                    System QR
+                </button>
+                <button id="open-docs-qr-btn" class="console-btn px-6 py-2 bg-adi-magenta/5 border-adi-magenta/30 text-adi-magenta text-[10px] font-black uppercase tracking-widest hover:bg-adi-magenta/20 transition-all">
+                    Tech Docs QR
+                </button>
                 <button id="open-sim-btn" class="console-btn px-6 py-2 bg-adi-gold/5 border-adi-gold/30 text-adi-gold text-[10px] font-black uppercase tracking-widest hover:bg-adi-gold/20 transition-all">
                     Fleet Simulation
+                </button>
+                <button id="open-startup-btn" class="console-btn px-6 py-2 bg-adi-green/5 border-adi-green/30 text-adi-green text-[10px] font-black uppercase tracking-widest hover:bg-adi-green/20 transition-all">
+                    Startup Challenge 2026
                 </button>
                 <div class="text-right">
                     <span class="text-[10px] text-gray-500 block uppercase font-bold tracking-widest mb-1 opacity-50">Local Fleet Integrity</span>
@@ -467,9 +570,20 @@
                 <div class="flex flex-col bg-adi-panel/40 border border-white/5 rounded-sm overflow-hidden flex-[1.5] min-h-0">
                     <div class="p-3 border-b border-white/10 bg-black/40 flex justify-between items-center">
                         <span class="text-[11px] font-bold text-adi-cyan uppercase tracking-widest">Bank Matrix [32]</span>
-                        <span id="avg-voltage" class="text-[9px] text-adi-green/60 font-mono">3.92V_OFFLINE</span>
+                        <div class="flex gap-2 items-center">
+                            <div id="v2g-summary" class="flex gap-2 mr-4 border-r border-white/10 pr-4">
+                                <div class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-adi-magenta animate-pulse"></span><span id="v2g-engaged-count" class="text-[7px] text-adi-magenta font-black">0</span></div>
+                                <div class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-adi-green"></span><span id="v2g-ready-count" class="text-[7px] text-adi-green font-black">0</span></div>
+                                <div class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-adi-red"></span><span id="v2g-offline-count" class="text-[7px] text-adi-red font-black">0</span></div>
+                            </div>
+                            <span id="avg-voltage" class="text-[9px] text-adi-green/60 font-mono ml-2">3.92V_OFFLINE</span>
+                        </div>
                     </div>
                     <div id="bank-matrix" class="grid grid-cols-4 gap-1 p-2 overflow-y-auto content-start flex-1 scrollbar-hide"></div>
+                    <div id="batch-toolbar" class="hidden p-2 bg-adi-panel border-t border-white/10 flex gap-2">
+                        <button id="batch-repair-btn" class="px-3 py-1 bg-adi-red/20 text-adi-red border border-adi-red/30 text-[9px] font-black uppercase tracking-widest hover:bg-adi-red/40">Batch Repair</button>
+                        <button id="batch-v2g-btn" class="px-3 py-1 bg-adi-magenta/20 text-adi-magenta border border-adi-magenta/30 text-[9px] font-black uppercase tracking-widest hover:bg-adi-magenta/40">Batch V2G Sync</button>
+                    </div>
                 </div>
                 
                 <!-- FACTOR X CHART -->
@@ -478,6 +592,62 @@
                         <span class="text-[11px] font-bold text-adi-gold uppercase tracking-widest">Factor X Trend [LOCAL]</span>
                     </div>
                     <div id="fx-chart-root" class="flex-1 p-2 bg-black/20"></div>
+                </div>
+
+                <!-- BHS TREND CHART -->
+                <div class="flex flex-col bg-adi-panel/40 border border-white/5 rounded-sm overflow-hidden flex-1 min-h-0">
+                    <div class="p-3 border-b border-white/10 bg-black/40 flex justify-between items-center">
+                        <span class="text-[11px] font-bold text-adi-cyan uppercase tracking-widest">BHS Trend [LOCAL]</span>
+                    </div>
+                    <div id="bhs-main-chart-root" class="flex-1 p-2 bg-black/20"></div>
+                </div>
+
+                <!-- TEMPERATURE CHART -->
+                <div class="flex flex-col bg-adi-panel/40 border border-white/5 rounded-sm overflow-hidden flex-1 min-h-0">
+                    <div class="p-3 border-b border-white/10 bg-black/40 flex justify-between items-center">
+                        <span class="text-[11px] font-bold text-adi-magenta uppercase tracking-widest">Temperature Trend [°C]</span>
+                    </div>
+                    <div id="temp-chart-root" class="flex-1 p-2 bg-black/20"></div>
+                </div>
+
+                <!-- CRITICAL MINERAL RECOVERY -->
+                <div class="flex flex-col bg-adi-panel/40 border border-white/5 rounded-sm overflow-hidden p-3 space-y-3">
+                    <div class="flex justify-between items-center border-b border-white/10 pb-2">
+                        <span class="text-[10px] font-black text-adi-teal uppercase tracking-widest">Critical Mineral Recovery</span>
+                        <span class="text-[8px] text-adi-green font-mono animate-pulse">RECYCLING_ACTIVE</span>
+                    </div>
+                    <div id="mineral-recovery-container" class="space-y-3">
+                        <!-- Lithium -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[8px] uppercase font-bold text-gray-400">
+                                <span>Lithium (Li)</span>
+                                <span id="val-lithium" class="text-adi-cyan">0.00 kg</span>
+                            </div>
+                            <div class="h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/10">
+                                <div id="bar-lithium" class="h-full bg-adi-cyan transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <!-- Cobalt -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[8px] uppercase font-bold text-gray-400">
+                                <span>Cobalt (Co)</span>
+                                <span id="val-cobalt" class="text-adi-magenta">0.00 kg</span>
+                            </div>
+                            <div class="h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/10">
+                                <div id="bar-cobalt" class="h-full bg-adi-magenta transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <!-- Nickel -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[8px] uppercase font-bold text-gray-400">
+                                <span>Nickel (Ni)</span>
+                                <span id="val-nickel" class="text-adi-gold">0.00 kg</span>
+                            </div>
+                            <div class="h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/10">
+                                <div id="bar-nickel" class="h-full bg-adi-gold transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- DIAGNOSTICS & FILTERS (Moved from Center) -->
@@ -555,7 +725,7 @@
 
             <!-- RIGHT COLUMN: LOGS & HISTORY -->
             <div class="col-span-3 flex flex-col gap-6 min-h-0">
-                <div class="flex flex-col bg-adi-panel/40 border border-white/5 rounded-sm overflow-hidden h-[40%]">
+                <div class="flex flex-col bg-adi-panel/40 border border-white/5 rounded-sm overflow-hidden h-[65%]">
                     <div class="p-3 border-b border-white/10 bg-black/40 flex justify-between items-center">
                         <div class="flex gap-4">
                             <button id="tab-history" class="text-[11px] font-bold text-adi-magenta uppercase tracking-widest border-b-2 border-adi-magenta pb-1 transition-all">History</button>
@@ -565,7 +735,10 @@
                                 <span id="alert-badge" class="absolute -top-1 -right-2 bg-adi-red text-black text-[6px] font-black px-1 rounded-full hidden">0</span>
                             </button>
                             <button id="tab-analytics" class="text-[11px] font-bold text-gray-500 uppercase tracking-widest pb-1 hover:text-adi-teal transition-all border-b-2 border-transparent">Analytics</button>
-                            <button id="tab-ai" class="text-[11px] font-bold text-gray-500 uppercase tracking-widest pb-1 hover:text-adi-gold transition-all border-b-2 border-transparent">AI Core</button>
+                            <button id="tab-ai" class="text-[11px] font-bold text-adi-gold uppercase tracking-widest pb-1 hover:text-white transition-all border-b-2 border-transparent flex items-center gap-1">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                                AI Core
+                            </button>
                         </div>
                         
                         <div id="history-controls">
@@ -575,23 +748,32 @@
                         <div id="analytics-controls" class="hidden">
                             <span class="text-[9px] text-adi-teal font-bold uppercase tracking-widest">Regen Effectiveness</span>
                         </div>
-                        
-                        <div id="ai-controls" class="hidden">
-                            <span class="text-[9px] text-adi-gold font-bold uppercase tracking-widest">Sovereign AI Node</span>
-                        </div>
-                        
-                        <div id="task-controls" class="hidden flex items-center gap-2">
-                            <button id="undo-task-btn" class="hidden text-[9px] border border-adi-gold/30 px-2 py-1 rounded-sm text-adi-gold font-bold uppercase hover:bg-adi-gold/10 animate-pulse">Undo</button>
-                            <div class="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-sm border border-white/10">
-                                <span class="text-[8px] text-gray-500 uppercase font-bold">Sort:</span>
-                                <select id="task-sort-select" class="bg-transparent text-[9px] text-adi-cyan font-bold uppercase outline-none cursor-pointer">
-                                    <option value="TIME" class="bg-adi-panel">Date</option>
-                                    <option value="PRIORITY_HIGH" class="bg-adi-panel">Prio (HI)</option>
-                                    <option value="PRIORITY_LOW" class="bg-adi-panel">Prio (LO)</option>
-                                </select>
+                                          <div id="task-controls" class="hidden flex items-center gap-2">
+                            <div class="flex items-center mr-2">
+                                <input type="checkbox" id="task-select-all" class="w-3 h-3 border border-white/20 bg-black rounded-sm appearance-none checked:bg-adi-cyan cursor-pointer transition-all" title="Select All">
                             </div>
-                            <button id="add-task-btn" class="text-[9px] border border-adi-green/30 px-2 py-1 rounded-sm text-adi-green font-bold uppercase hover:bg-adi-green/10">+ New</button>
+                            <div id="bulk-actions" class="hidden flex items-center gap-2 bg-adi-cyan/10 px-2 py-1 rounded-sm border border-adi-cyan/30 mr-2">
+                                <span id="selected-count" class="text-[8px] text-adi-cyan font-bold uppercase">0 SELECTED</span>
+                                <select id="bulk-priority" class="bg-transparent text-[9px] text-white font-bold uppercase outline-none cursor-pointer">
+                                    <option value="" class="bg-adi-panel">Set Prio...</option>
+                                    <option value="LOW" class="bg-adi-panel">Low</option>
+                                    <option value="MEDIUM" class="bg-adi-panel">Med</option>
+                                    <option value="HIGH" class="bg-adi-panel">High</option>
+                                </select>
+                                <button id="bulk-complete" class="text-adi-green hover:text-white transition-colors" title="Mark Selected as Done">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                </button>
+                                <button id="bulk-pending" class="text-gray-500 hover:text-white transition-colors" title="Mark Selected as Pending">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                </button>
+                                <button id="bulk-delete" class="text-adi-red hover:text-white transition-colors" title="Delete Selected">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0-1-1-2-2-2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                                </button>
+                            </div>
+                            <button id="undo-task-btn" class="hidden text-[9px] border border-adi-gold/30 px-2 py-1 rounded-sm text-adi-gold font-bold uppercase hover:bg-adi-gold/10 animate-pulse">Undo</button>
+                            <button id="add-task-btn" class="text-[9px] border border-adi-green/30 px-2 py-1 rounded-sm text-adi-green font-bold uppercase hover:bg-adi-green/10">+ New Protocol</button>
                         </div>
+ </div>
 
                         <div id="alert-controls" class="hidden">
                             <button id="clear-alerts-btn" class="text-[9px] border border-adi-red/30 px-3 py-1 rounded-sm text-adi-red font-bold uppercase hover:bg-adi-red/10">Acknowledge All</button>
@@ -647,31 +829,74 @@
                         </div>
                     </div>
                     
-                    <div id="ai-container" class="hidden flex-1 p-4 bg-black/20 relative flex flex-col space-y-4 overflow-y-auto">
-                        <div class="flex-1 bg-black/40 border border-white/5 rounded-sm p-4 overflow-y-auto font-mono text-[10px] space-y-3 text-gray-400" id="ai-chat-log">
-                            <div class="text-adi-gold">SOVEREIGN AI KERNEL ONLINE. WAITING FOR INPUT...</div>
-                        </div>
-                        <div class="flex gap-2">
-                            <input type="text" id="ai-input" placeholder="ENTER QUERY..." class="flex-1 bg-black border border-white/20 p-2 text-white text-[10px] outline-none focus:border-adi-gold uppercase font-mono">
-                            <button id="ai-send-btn" class="console-btn bg-adi-gold/20 text-adi-gold border border-adi-gold/40 px-4 py-2 text-[10px] font-bold uppercase hover:bg-adi-gold/30">Send</button>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2">
-                            <button id="ai-gen-img-btn" class="console-btn bg-adi-cyan/10 text-adi-cyan border border-adi-cyan/30 py-2 text-[9px] font-bold uppercase hover:bg-adi-cyan/20">Generate Image</button>
-                            <button id="ai-gen-vid-btn" class="console-btn bg-adi-magenta/10 text-adi-magenta border border-adi-magenta/30 py-2 text-[9px] font-bold uppercase hover:bg-adi-magenta/20">Generate Video (Veo)</button>
-                        </div>
-                    </div>
 
                     <div id="task-list-container" class="hidden flex-1 p-4 font-mono text-[10px] overflow-y-auto space-y-2 bg-black/20 relative">
                         <!-- Task Input Form (Hidden by default) -->
                         <div id="new-task-form" class="hidden mb-4 p-3 bg-white/5 border border-white/10 rounded-sm space-y-2">
                             <input type="text" id="new-task-desc" placeholder="PROTOCOL_DESC..." class="w-full bg-black border border-white/20 p-2 text-white text-[9px] outline-none focus:border-adi-cyan uppercase">
+                            <textarea id="new-task-notes" placeholder="ADDITIONAL NOTES / PROTOCOL DETAILS..." class="w-full bg-black border border-white/20 p-2 text-gray-400 text-[8px] outline-none focus:border-adi-cyan uppercase h-12 resize-none"></textarea>
                             <div class="flex gap-2">
                                 <select id="new-task-priority" class="bg-black border border-white/20 p-1 text-[9px] text-gray-400 outline-none focus:border-adi-cyan uppercase flex-1">
-                                    <option value="LOW">Low Priority</option>
-                                    <option value="MEDIUM">Medium Priority</option>
-                                    <option value="HIGH">High Priority</option>
+                                    <option value="LOW" class="text-adi-green">Low Priority</option>
+                                    <option value="MEDIUM" class="text-adi-gold">Medium Priority</option>
+                                    <option value="HIGH" class="text-adi-red">High Priority</option>
                                 </select>
+                                <div class="flex items-center gap-2 bg-black border border-white/20 px-2 py-1 flex-1">
+                                    <span class="text-[7px] text-gray-500 font-black uppercase tracking-widest">Due:</span>
+                                    <input type="date" id="new-task-due" class="bg-transparent text-[9px] text-gray-400 outline-none focus:border-adi-cyan uppercase w-full">
+                                </div>
                                 <button id="save-task-btn" class="bg-adi-green/20 text-adi-green border border-adi-green/40 px-3 py-1 text-[9px] font-bold uppercase hover:bg-adi-green/30">Save</button>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4 px-2 py-1 bg-black/40 border-b border-white/5 mb-2">
+                            <div class="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-sm border border-white/10">
+                                <span class="text-[8px] text-gray-500 uppercase font-bold">Sort:</span>
+                                <select id="task-sort-select" class="bg-transparent text-[9px] text-adi-cyan font-bold uppercase outline-none cursor-pointer">
+                                    <option value="TIME" class="bg-adi-panel">Date</option>
+                                    <option value="PRIORITY_HIGH" class="bg-adi-panel">Prio (HI)</option>
+                                    <option value="PRIORITY_LOW" class="bg-adi-panel">Prio (LO)</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center gap-2 cursor-pointer text-white/60 hover:text-adi-cyan transition-colors" id="sort-by-time-header">
+                                <span class="text-[7px] font-black uppercase tracking-widest">Time</span>
+                                <svg width="6" height="6" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                            </div>
+                            <div class="flex items-center gap-2 cursor-pointer text-white/60 hover:text-adi-cyan transition-colors" id="sort-by-priority-header">
+                                <span class="text-[7px] font-black uppercase tracking-widest">Priority</span>
+                                <svg width="6" height="6" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                            </div>
+                            <div class="flex-1"></div>
+                            <div class="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-sm border border-white/10">
+                                <span class="text-[8px] text-gray-500 uppercase font-bold">Prio:</span>
+                                <select id="task-priority-filter" class="bg-transparent text-[9px] text-adi-cyan font-bold uppercase outline-none cursor-pointer">
+                                    <option value="ALL" class="bg-adi-panel">All</option>
+                                    <option value="LOW" class="bg-adi-panel">Low</option>
+                                    <option value="MEDIUM" class="bg-adi-panel">Med</option>
+                                    <option value="HIGH" class="bg-adi-panel">High</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-sm border border-white/10">
+                                <span class="text-[8px] text-gray-500 uppercase font-bold">Due:</span>
+                                <select id="task-due-date-filter" class="bg-transparent text-[9px] text-adi-cyan font-bold uppercase outline-none cursor-pointer">
+                                    <option value="ALL" class="bg-adi-panel">All</option>
+                                    <option value="TODAY" class="bg-adi-panel">Due Today</option>
+                                    <option value="WEEK" class="bg-adi-panel">Due This Week</option>
+                                    <option value="OVERDUE" class="bg-adi-panel">Overdue</option>
+                                    <option value="NONE" class="bg-adi-panel">No Due Date</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-sm border border-white/10">
+                                <span class="text-[8px] text-gray-500 uppercase font-bold">Status:</span>
+                                <select id="task-status-filter" class="bg-transparent text-[9px] text-adi-cyan font-bold uppercase outline-none cursor-pointer">
+                                    <option value="ALL" class="bg-adi-panel">All</option>
+                                    <option value="PENDING" class="bg-adi-panel">Pending</option>
+                                    <option value="COMPLETED" class="bg-adi-panel">Done</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center gap-1 bg-black/60 rounded-full p-0.5 border border-white/10 ml-2" id="task-status-pills">
+                                <button class="px-2 py-0.5 rounded-full text-[7px] font-bold uppercase tracking-widest bg-adi-cyan text-black transition-colors" data-status="ALL">All</button>
+                                <button class="px-2 py-0.5 rounded-full text-[7px] font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-colors" data-status="PENDING">Pending</button>
+                                <button class="px-2 py-0.5 rounded-full text-[7px] font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-colors" data-status="COMPLETED">Completed</button>
                             </div>
                         </div>
                         <div id="tasks-list" class="space-y-2"></div>
@@ -778,20 +1003,32 @@
 
     <!-- CELL INSPECTOR MODAL -->
     <div id="cell-inspector-modal" class="fixed inset-0 bg-black/90 z-50 hidden flex items-center justify-center backdrop-blur-sm">
-        <div class="bg-adi-panel border border-adi-cyan/30 p-8 rounded-sm max-w-2xl w-full shadow-[0_0_50px_rgba(0,242,255,0.1)] relative">
+        <div class="bg-adi-panel border border-adi-cyan/30 p-8 rounded-sm max-w-4xl w-full shadow-[0_0_50px_rgba(0,242,255,0.1)] relative">
             <button id="cell-inspector-close" class="absolute top-4 right-4 text-gray-500 hover:text-white">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
             
             <div class="flex justify-between items-end mb-6 border-b border-white/10 pb-4">
                 <div>
-                    <h2 class="text-2xl font-black text-white tracking-tighter uppercase mb-1">Cell Inspector</h2>
+                    <h2 class="text-2xl font-black text-white tracking-tighter uppercase mb-1">Detailed Cell Inspector</h2>
                     <div class="text-[10px] text-adi-cyan font-mono tracking-widest uppercase">Bank ID: <span id="inspector-bank-id" class="text-white">--</span> // Voltage: <span id="inspector-bank-voltage" class="text-white">--</span>V</div>
+                    <div class="flex gap-4">
+                        <div id="inspector-v2g-container" class="mt-3 flex flex-col gap-1">
+                            <span class="text-[8px] text-gray-500 font-black uppercase tracking-[0.2em]">V2G Power Status</span>
+                            <div id="inspector-v2g-status" class="text-xs font-black uppercase tracking-widest px-3 py-1 rounded-sm bg-gray-800 text-gray-400 border border-white/10 w-fit">OFFLINE</div>
+                        </div>
+                        <div id="inspector-v2g-cycles-container" class="mt-3 flex flex-col gap-1">
+                            <span class="text-[8px] text-gray-500 font-black uppercase tracking-[0.2em]">Total V2G Cycles</span>
+                            <div id="inspector-v2g-cycles" class="text-xs font-black text-white tabular-nums tracking-widest">0</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="text-right">
-                    <div class="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">Status</div>
-                    <div id="inspector-bank-status" class="text-xl font-black text-adi-green uppercase tracking-tighter">STABLE</div>
-                    <div id="inspector-failure-container" class="hidden mt-2 text-right">
+                <div class="flex gap-8">
+                    <div class="text-right">
+                        <div class="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">Status</div>
+                        <div id="inspector-bank-status" class="text-xl font-black text-adi-green uppercase tracking-tighter">STABLE</div>
+                    </div>
+                    <div id="inspector-failure-container" class="hidden text-right">
                         <div class="text-[7px] text-gray-500 font-bold uppercase tracking-widest mb-0.5">Predicted Failure</div>
                         <div id="inspector-failure-date" class="text-[10px] font-black text-adi-red tabular-nums tracking-widest">--</div>
                         <div class="text-[7px] text-gray-500 font-bold uppercase tracking-widest mt-2 mb-0.5">Failure Probability</div>
@@ -804,6 +1041,33 @@
 
             <div class="grid grid-cols-4 gap-4 mb-6" id="cell-grid">
                 <!-- Cells rendered here -->
+            </div>
+
+            <div id="cell-batch-toolbar" class="hidden p-4 bg-black/40 border border-adi-cyan/30 flex gap-4 items-center">
+                <span class="text-[10px] text-adi-cyan font-black uppercase tracking-widest" id="cell-batch-count">0 CELLS SELECTED</span>
+                <button id="cell-batch-repair-btn" class="px-4 py-2 bg-adi-red/20 text-adi-red border border-adi-red/30 text-[10px] font-black uppercase tracking-widest hover:bg-adi-red/40">Batch Repair</button>
+                <button id="cell-batch-v2g-btn" class="px-4 py-2 bg-adi-magenta/20 text-adi-magenta border border-adi-magenta/30 text-[10px] font-black uppercase tracking-widest hover:bg-adi-magenta/40">Batch V2G Sync</button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div class="border-t border-white/10 pt-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-[9px] font-black text-adi-gold uppercase tracking-widest">Health Score Trend (BHS)</span>
+                        <span class="text-[7px] text-gray-500 uppercase font-bold">Last 24 Cycles</span>
+                    </div>
+                    <div id="bhs-trend-chart" class="h-32 bg-black/40 rounded-sm border border-white/5 relative overflow-hidden">
+                        <!-- BHS Trend Chart will be rendered here -->
+                    </div>
+                </div>
+                <div class="border-t border-white/10 pt-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-[9px] font-black text-adi-cyan uppercase tracking-widest">Cell Distribution Analysis</span>
+                        <span class="text-[7px] text-gray-500 uppercase font-bold">Voltage Variance</span>
+                    </div>
+                    <div id="cell-variance-chart" class="h-32 bg-black/40 rounded-sm border border-white/5 relative overflow-hidden flex items-center justify-center">
+                        <div class="text-[8px] text-gray-600 font-mono uppercase tracking-widest">Real-time spectral analysis active</div>
+                    </div>
+                </div>
             </div>
 
             <div class="flex justify-between items-center bg-white/5 p-3 rounded-sm border border-white/5">

@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
+import { QRCodeCanvas } from "qrcode.react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, AreaChart, Area, BarChart, Bar, Legend } from "recharts";
 
 // --- GLOBAL ERROR HANDLER ---
@@ -30,12 +31,20 @@ enum TaskPriority {
     HIGH = 'HIGH'
 }
 
+enum V2GStatus {
+    READY = 'READY',
+    ENGAGED = 'ENGAGED',
+    OFFLINE = 'OFFLINE'
+}
+
 interface Task {
     id: string;
     desc: string;
     priority: TaskPriority;
     status: 'PENDING' | 'COMPLETED';
     timestamp: number;
+    dueDate?: number;
+    notes?: string;
 }
 
 interface CellRegenEntry {
@@ -49,9 +58,14 @@ interface BatteryCell {
     id: number;
     voltage: number;
     temp: number;
+    ir: number;
     status: 'GOOD' | 'WEAK' | 'CRITICAL';
     fx: number;
     regenHistory?: CellRegenEntry[];
+    v2gStatus?: V2GStatus;
+    v2gCycles?: number;
+    regenProgress?: number;
+    regenStatus?: 'ONGOING' | 'SUCCESS' | 'FAILURE';
 }
 
 interface BatteryBank {
@@ -61,7 +75,9 @@ interface BatteryBank {
     temp: string;
     fx: number;
     repairHistory: RepairHistoryEntry[];
-    v2gStatus?: 'READY' | 'ENGAGED' | 'OFFLINE';
+    bhsHistory?: { time: string; score: number }[];
+    v2gStatus?: V2GStatus;
+    v2gCycles?: number;
     healthPrediction?: 'STABLE' | 'DEGRADING' | 'REGEN_REQ' | 'AT_RISK';
     predictedFailureDate?: string;
     degradationRate?: number;
@@ -81,6 +97,84 @@ interface Alert {
     timestamp: number;
     acknowledged: boolean;
 }
+
+interface MineralRecovery {
+    lithium: number;
+    cobalt: number;
+    nickel: number;
+    lithiumTarget: number;
+    cobaltTarget: number;
+    nickelTarget: number;
+}
+
+// --- COMPONENTS ---
+
+const BHSTrendChart = ({ data, repairs }: { data: { time: string; score: number }[]; repairs?: RepairHistoryEntry[] }) => {
+    return (
+        <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                    <linearGradient id="colorBhs" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ffd700" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#ffd700" stopOpacity={0}/>
+                    </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis 
+                    dataKey="time" 
+                    hide 
+                />
+                <YAxis 
+                    domain={[0, 100]} 
+                    tick={{ fontSize: 8, fill: '#666', fontWeight: 'bold' }} 
+                    axisLine={false}
+                    tickLine={false}
+                    ticks={[0, 25, 50, 65, 85, 100]}
+                />
+                <Tooltip 
+                    contentStyle={{ 
+                        backgroundColor: 'rgba(11, 18, 25, 0.95)', 
+                        border: '1px solid rgba(255,215,0,0.4)', 
+                        fontSize: '10px',
+                        borderRadius: '2px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                    }}
+                    itemStyle={{ color: '#ffd700', fontWeight: 'bold' }}
+                    labelStyle={{ color: '#666', marginBottom: '4px', display: 'block' }}
+                    cursor={{ stroke: 'rgba(255,215,0,0.2)', strokeWidth: 1 }}
+                />
+                <ReferenceLine y={85} stroke="rgba(255,215,0,0.3)" strokeDasharray="3 3" label={{ position: 'right', value: 'WARN', fill: 'rgba(255,215,0,0.4)', fontSize: 7, fontWeight: 'bold' }} />
+                <ReferenceLine y={65} stroke="rgba(255,51,51,0.3)" strokeDasharray="3 3" label={{ position: 'right', value: 'CRIT', fill: 'rgba(255,51,51,0.4)', fontSize: 7, fontWeight: 'bold' }} />
+                
+                {repairs?.map((r, i) => {
+                    const dateObj = new Date(r.timestamp);
+                    const formattedTime = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    return (
+                        <ReferenceLine 
+                            key={i} 
+                            x={formattedTime} 
+                            stroke="rgba(0, 255, 127, 0.4)" 
+                            strokeWidth={1}
+                            label={{ position: 'top', value: 'REGEN', fill: 'rgba(0, 255, 127, 0.6)', fontSize: 6 }} 
+                        />
+                    );
+                })}
+
+                <Area 
+                    type="monotone" 
+                    dataKey="score" 
+                    stroke="#ffd700" 
+                    strokeWidth={2}
+                    fillOpacity={1} 
+                    fill="url(#colorBhs)" 
+                    isAnimationActive={false}
+                    dot={{ r: 1, fill: '#ffd700', strokeWidth: 0, fillOpacity: 0.5 }}
+                    activeDot={{ r: 3, fill: '#ffd700', stroke: '#000', strokeWidth: 1 }}
+                />
+            </AreaChart>
+        </ResponsiveContainer>
+    );
+};
 
 // --- LICENSE MANAGER ---
 class LicenseManager {
@@ -428,6 +522,43 @@ const FactorXChart = ({ data }: { data: ChartDataPoint[] }) => {
     );
 };
 
+const TemperatureChart = ({ data, selectedIndex }: { data: ChartDataPoint[], selectedIndex: number }) => {
+    const lines = useMemo(() => Array.from({ length: 32 }, (_, i) => `bank_temp_${i + 1}`), []);
+    const selectedBankKey = `bank_temp_${selectedIndex + 1}`;
+
+    return (
+        <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis dataKey="time" hide />
+                <YAxis domain={[15, 60]} stroke="rgba(255, 0, 255, 0.4)" fontSize={8} tickFormatter={(val) => `${val}°C`} />
+                <ReferenceLine y={45} stroke="#ff3333" strokeDasharray="3 3" />
+                <Tooltip 
+                    contentStyle={{ backgroundColor: '#0b1219', border: '1px solid #ff00ff', fontSize: '9px', fontFamily: 'JetBrains Mono' }} 
+                    itemStyle={{ padding: '2px 0' }}
+                    labelStyle={{ display: 'none' }}
+                />
+                {lines.map((bankKey, idx) => {
+                    const isSelected = bankKey === selectedBankKey;
+                    return (
+                        <Line 
+                            key={bankKey} 
+                            type="monotone" 
+                            dataKey={bankKey} 
+                            stroke={isSelected ? "#ff00ff" : (idx % 2 === 0 ? "#ff00ff" : "#00f2ff")} 
+                            strokeWidth={isSelected ? 2.5 : 1} 
+                            dot={false} 
+                            opacity={isSelected ? 1 : 0.05} 
+                            isAnimationActive={false} 
+                            name={`Bank B${idx + 1}`}
+                        />
+                    );
+                })}
+            </LineChart>
+        </ResponsiveContainer>
+    );
+};
+
 const SimulationChart = ({ data }: { data: any[] }) => {
     return (
         <ResponsiveContainer width="100%" height="100%">
@@ -459,7 +590,16 @@ const SimulationChart = ({ data }: { data: any[] }) => {
 // --- APP CORE ---
 const orbit = new HadronOrbit('hadron-canvas');
 const osc = new SovereignOscilloscope('osc-canvas');
-let isRepairing = false; let selectedIndex = 0; let globalHistoryMode = false;
+let isRepairing = false; let selectedIndex = 0; let selectedBankIds: Set<number> = new Set(); let globalHistoryMode = false;
+
+let mineralData: MineralRecovery = {
+    lithium: 12.45,
+    cobalt: 4.82,
+    nickel: 8.15,
+    lithiumTarget: 25.0,
+    cobaltTarget: 10.0,
+    nickelTarget: 15.0
+};
 const STORAGE_KEY = 'adi_sovereign_v26_55';
 const TASKS_KEY = 'adi_tasks_v1';
 
@@ -470,6 +610,7 @@ let undoRemaining = 10;
 
 const chartHistory: ChartDataPoint[] = [];
 const fxHistory: ChartDataPoint[] = [];
+const tempHistory: ChartDataPoint[] = [];
 const MAX_HISTORY = 40;
 
 let tasks: Task[] = [];
@@ -489,39 +630,92 @@ function saveTasks() {
 
 function loadData(): BatteryBank[] {
     const saved = localStorage.getItem(STORAGE_KEY);
+    let data: BatteryBank[] = [];
     if (saved) { 
         try { 
-            let data = JSON.parse(saved);
-            // Migration: Ensure cells exist
-            data = data.map((b: BatteryBank) => {
+            data = JSON.parse(saved);
+            // Migration: Ensure cells exist and other fields
+            data = data.map((b: BatteryBank, i) => {
                 if (!b.cells) {
-                    b.cells = Array.from({ length: 16 }, (_, i) => ({
-                        id: i + 1,
+                    b.cells = Array.from({ length: 16 }, (_, j) => ({
+                        id: j + 1,
                         voltage: 3.9 + Math.random() * 0.2,
                         temp: 22 + Math.random() * 5,
-                        status: Math.random() > 0.9 ? 'WEAK' : 'GOOD'
+                        ir: 0.5 + Math.random() * 1.5,
+                        status: Math.random() > 0.9 ? 'WEAK' : 'GOOD',
+                        fx: 0.01 + Math.random() * 0.05,
+                        v2gStatus: V2GStatus.READY,
+                        v2gCycles: Math.floor(Math.random() * 50)
+                    }));
+                } else {
+                    b.cells = b.cells.map(c => ({
+                        ...c,
+                        voltage: c.voltage != null ? Number(c.voltage) : 3.9 + Math.random() * 0.2,
+                        temp: c.temp != null ? Number(c.temp) : 22 + Math.random() * 5,
+                        ir: c.ir != null ? Number(c.ir) : 0.5 + Math.random() * 1.5,
+                        status: c.status || (Math.random() > 0.9 ? 'WEAK' : 'GOOD'),
+                        fx: c.fx != null ? Number(c.fx) : 0.01 + Math.random() * 0.05,
+                        v2gStatus: c.v2gStatus || V2GStatus.READY,
+                        v2gCycles: c.v2gCycles || Math.floor(Math.random() * 50)
                     }));
                 }
+                if (!b.bhsHistory) {
+                    const initialBhs = 85 + Math.random() * 15;
+                    b.bhsHistory = Array.from({ length: 24 }, (_, j) => ({
+                        time: `-${24 - j}h`,
+                        score: Math.max(0, Math.min(100, initialBhs - (24 - j) * (0.1 + Math.random() * 0.2)))
+                    }));
+                }
+                if (!b.id) b.id = i + 1;
+                if (!b.v2gStatus) b.v2gStatus = 'READY';
+                if (b.v2gCycles === undefined) b.v2gCycles = Math.floor(Math.random() * 50);
+                if (b.fx === undefined) b.fx = 0.02 + Math.random() * 0.12;
+                if (b.voltage === undefined) b.voltage = (3.9 + Math.random() * 0.2).toFixed(2);
+                if (b.ir === undefined) b.ir = (12 + Math.random() * 8).toFixed(1);
+                if (b.temp === undefined) b.temp = (22 + Math.random() * 5).toFixed(1);
                 return b;
             });
-            return data;
         } catch(e) { console.error(e); } 
     }
-    return Array.from({ length: 32 }, (_, i) => ({
-        id: i + 1, voltage: (3.9 + Math.random() * 0.2).toFixed(2), ir: (12 + Math.random() * 8).toFixed(1),
-        temp: (22 + Math.random() * 5).toFixed(1), fx: 0.02 + Math.random() * 0.1, repairHistory: [],
-        v2gStatus: 'READY',
-        healthPrediction: 'STABLE',
-        degradationRate: 0.005 + Math.random() * 0.01,
-        predictedFailureDate: '> 30 DAYS',
-        cells: Array.from({ length: 16 }, (_, j) => ({
-            id: j + 1,
-            voltage: 3.9 + Math.random() * 0.2,
-            temp: 22 + Math.random() * 5,
-            status: Math.random() > 0.95 ? 'CRITICAL' : (Math.random() > 0.8 ? 'WEAK' : 'GOOD'),
-            fx: 0.01 + Math.random() * 0.05
-        }))
-    }));
+
+    // Ensure exactly 32 banks for hackathon presentation stability
+    if (data.length < 32) {
+        const missingCount = 32 - data.length;
+        const startId = data.length > 0 ? Math.max(...data.map(d => d.id)) + 1 : 1;
+        const initialBhs = 85 + Math.random() * 15;
+        const bhsHistory = Array.from({ length: 24 }, (_, j) => ({
+            time: `-${24 - j}h`,
+            score: Math.max(0, Math.min(100, initialBhs - (24 - j) * (0.1 + Math.random() * 0.2)))
+        }));
+
+        const missing = Array.from({ length: missingCount }, (_, i) => ({
+            id: startId + i, 
+            voltage: (3.9 + Math.random() * 0.2).toFixed(2), 
+            ir: (12 + Math.random() * 8).toFixed(1),
+            temp: (22 + Math.random() * 5).toFixed(1), 
+            fx: 0.02 + Math.random() * 0.1, 
+            repairHistory: [],
+            bhsHistory,
+            v2gStatus: V2GStatus.READY,
+            v2gCycles: 0,
+            healthPrediction: 'STABLE' as const,
+            degradationRate: 0.005 + Math.random() * 0.01,
+            predictedFailureDate: '> 30 DAYS',
+            cells: Array.from({ length: 16 }, (_, j) => ({
+                id: j + 1,
+                voltage: 3.9 + Math.random() * 0.2,
+                temp: 22 + Math.random() * 5,
+                ir: 0.5 + Math.random() * 1.5,
+                status: Math.random() > 0.95 ? 'CRITICAL' as const : (Math.random() > 0.8 ? 'WEAK' as const : 'GOOD' as const),
+                fx: 0.01 + Math.random() * 0.05
+            }))
+        }));
+        data = [...data, ...missing];
+    } else if (data.length > 32) {
+        data = data.slice(0, 32);
+    }
+    
+    return data;
 }
 
 let batteryData = loadData();
@@ -558,11 +752,23 @@ const appRoot = document.getElementById('app-root')!;
 const modalOverlay = document.getElementById('confirm-modal-overlay')!;
 const modalCancel = document.getElementById('modal-cancel')!;
 const modalConfirm = document.getElementById('modal-confirm')!;
+const modalRiskText = document.getElementById('modal-risk-text')!;
 
 // Sim Elements
 const openSimBtn = document.getElementById('open-sim-btn')!;
 const simModalOverlay = document.getElementById('sim-modal-overlay')!;
 const simCloseBtn = document.getElementById('sim-close-btn')!;
+
+// QR Elements
+const openQrBtn = document.getElementById('open-qr-btn')!;
+const openDocsQrBtn = document.getElementById('open-docs-qr-btn')!;
+const openStartupBtn = document.getElementById('open-startup-btn')!;
+const qrModalOverlay = document.getElementById('qr-modal-overlay')!;
+const qrCloseBtn = document.getElementById('qr-close-btn')!;
+const qrContainer = document.getElementById('qr-container')!;
+const qrUrlDisplay = document.getElementById('qr-url-display')!;
+const qrDownloadBtn = document.getElementById('qr-download-btn')! as HTMLButtonElement;
+const docsDownloadBtn = document.getElementById('docs-download-btn')! as HTMLButtonElement;
 
 // Cell Inspector Elements
 const cellInspectorModal = document.getElementById('cell-inspector-modal')!;
@@ -570,14 +776,31 @@ const cellInspectorClose = document.getElementById('cell-inspector-close')!;
 const inspectorBankId = document.getElementById('inspector-bank-id')!;
 const inspectorBankVoltage = document.getElementById('inspector-bank-voltage')!;
 const inspectorBankStatus = document.getElementById('inspector-bank-status')!;
+const inspectorV2GStatus = document.getElementById('inspector-v2g-status')!;
+const inspectorV2GCycles = document.getElementById('inspector-v2g-cycles')!;
 const inspectorFailureContainer = document.getElementById('inspector-failure-container')!;
 const inspectorFailureDate = document.getElementById('inspector-failure-date')!;
 const inspectorFailureProb = document.getElementById('inspector-failure-prob')!;
 const inspectorDegradationRate = document.getElementById('inspector-degradation-rate')!;
 const cellGrid = document.getElementById('cell-grid')!;
 const regenCellsBtn = document.getElementById('regen-cells-btn') as HTMLButtonElement;
+const v2gEngagedCount = document.getElementById('v2g-engaged-count') as HTMLElement;
+const v2gReadyCount = document.getElementById('v2g-ready-count') as HTMLElement;
+const v2gOfflineCount = document.getElementById('v2g-offline-count') as HTMLElement;
+const headerV2GEngaged = document.getElementById('header-v2g-engaged') as HTMLElement;
+const headerV2GReady = document.getElementById('header-v2g-ready') as HTMLElement;
+const headerV2GOffline = document.getElementById('header-v2g-offline') as HTMLElement;
 
-let selectedCells: number[] = [];
+let selectedCells: Set<number> = new Set();
+
+function updateCellBatchToolbar() {
+    if (selectedCells.size > 0) {
+        cellBatchToolbar.classList.remove('hidden');
+        cellBatchCount.innerText = `${selectedCells.size} CELLS SELECTED`;
+    } else {
+        cellBatchToolbar.classList.add('hidden');
+    }
+}
 
 function openCellInspector(bankIndex: number) {
     const bank = batteryData[bankIndex];
@@ -587,6 +810,13 @@ function openCellInspector(bankIndex: number) {
     inspectorBankVoltage.innerText = bank.voltage;
     inspectorBankStatus.innerText = bank.healthPrediction || 'STABLE';
     inspectorBankStatus.className = `text-xl font-black uppercase tracking-tighter ${bank.healthPrediction === 'REGEN_REQ' ? 'text-adi-red animate-pulse' : (bank.healthPrediction === 'AT_RISK' ? 'text-adi-gold' : 'text-adi-green')}`;
+
+    const v2gStatus = bank.v2gStatus || V2GStatus.OFFLINE;
+    inspectorV2GStatus.innerText = v2gStatus;
+    const v2gClass = v2gStatus === V2GStatus.ENGAGED ? 'bg-adi-magenta text-black animate-pulse shadow-[0_0_15px_rgba(255,0,255,0.4)]' : (v2gStatus === V2GStatus.READY ? 'bg-adi-green text-black shadow-[0_0_10px_rgba(0,255,65,0.2)]' : 'bg-gray-800 text-gray-500 border border-white/10');
+    inspectorV2GStatus.className = `text-xs font-black uppercase tracking-widest px-3 py-1 rounded-sm w-fit ${v2gClass}`;
+
+    inspectorV2GCycles.innerText = (bank.v2gCycles || 0).toString();
 
     if (bank.predictedFailureDate) {
         inspectorFailureContainer.classList.remove('hidden');
@@ -603,9 +833,76 @@ function openCellInspector(bankIndex: number) {
         inspectorFailureContainer.classList.add('hidden');
     }
 
-    selectedCells = [];
+    selectedCells = new Set();
+    updateCellBatchToolbar();
     renderCellGrid(bank);
+    renderBHSTrendChart(bank);
+    renderCellVarianceChart(bank);
     cellInspectorModal.classList.remove('hidden');
+}
+
+function renderCellVarianceChart(bank: BatteryBank) {
+    const container = document.getElementById('cell-variance-chart')!;
+    container.innerHTML = '';
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+    container.appendChild(canvas);
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    const cells = bank.cells || [];
+    const voltages = cells.map(c => c.voltage);
+    const minV = Math.min(...voltages);
+    const maxV = Math.max(...voltages);
+    const range = maxV - minV || 0.1;
+    
+    ctx.strokeStyle = 'rgba(0, 242, 255, 0.3)';
+    ctx.lineWidth = 1;
+    
+    // Draw spectral bars
+    const barWidth = canvas.width / cells.length;
+    cells.forEach((cell, i) => {
+        const h = ((cell.voltage - minV) / range) * (canvas.height - 20) + 10;
+        const x = i * barWidth;
+        const y = canvas.height - h;
+        
+        const gradient = ctx.createLinearGradient(0, y, 0, canvas.height);
+        if (cell.status === 'CRITICAL') {
+            gradient.addColorStop(0, '#ff0055');
+            gradient.addColorStop(1, 'rgba(255, 0, 85, 0.1)');
+        } else if (cell.status === 'WEAK') {
+            gradient.addColorStop(0, '#ffcc00');
+            gradient.addColorStop(1, 'rgba(255, 204, 0, 0.1)');
+        } else {
+            gradient.addColorStop(0, '#00f2ff');
+            gradient.addColorStop(1, 'rgba(0, 242, 255, 0.1)');
+        }
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(x + 2, y, barWidth - 4, h);
+        
+        // Add ID label
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.font = '6px monospace';
+        ctx.fillText(cell.id.toString(), x + barWidth/2 - 2, canvas.height - 2);
+    });
+}
+
+function renderBHSTrendChart(bank: BatteryBank) {
+    const root = getRoot('bhs-trend-chart');
+    if (root && bank.bhsHistory) {
+        root.render(<BHSTrendChart data={bank.bhsHistory} repairs={bank.repairHistory} />);
+    }
+}
+
+function calculateCellHealth(cell: BatteryCell): number {
+    const vDev = Math.abs(cell.voltage - 3.9) / 0.5 * 20;
+    const tDev = Math.max(0, cell.temp - 35) / 10 * 30;
+    const fxPenalty = cell.fx * 500;
+    return Math.max(0, Math.min(100, 100 - (vDev + tDev + fxPenalty)));
 }
 
 function renderCellGrid(bank: BatteryBank) {
@@ -614,14 +911,14 @@ function renderCellGrid(bank: BatteryBank) {
     
     bank.cells?.forEach(cell => {
         const el = document.createElement('div');
-        const isSelected = selectedCells.includes(cell.id);
+        const isSelected = selectedCells.has(cell.id);
         const statusColor = cell.status === 'CRITICAL' ? 'border-adi-red bg-adi-red/10 text-adi-red' : (cell.status === 'WEAK' ? 'border-adi-gold bg-adi-gold/10 text-adi-gold' : 'border-adi-green/30 bg-adi-green/5 text-adi-green');
         const pulse = cell.status === 'CRITICAL' ? 'animate-pulse' : '';
         
         // Calculate average FX improvement per regen cycle (regeneration rate)
         let avgFxImprovement = 0;
         if (cell.regenHistory && cell.regenHistory.length > 0) {
-            const totalImprovement = cell.regenHistory.reduce((sum, entry) => sum + (entry.pre.fx - entry.post.fx), 0);
+            const totalImprovement = cell.regenHistory.reduce((sum, entry) => sum + ((entry.pre?.fx ?? 0) - (entry.post?.fx ?? 0)), 0);
             avgFxImprovement = totalImprovement / cell.regenHistory.length;
         }
 
@@ -647,10 +944,13 @@ function renderCellGrid(bank: BatteryBank) {
 
         const prob = Math.min(99.9, Math.max(0.1, (100 - cellBhs) * multiplier));
         
-        el.className = `p-3 border rounded-sm cursor-pointer transition-all hover:bg-white/5 ${statusColor} ${isSelected ? 'ring-2 ring-white' : ''} ${pulse} relative group/cell`;
+        const health = calculateCellHealth(cell);
+        
+        el.className = `p-3 border rounded-sm cursor-pointer transition-all hover:bg-white/5 ${statusColor} ${isSelected ? 'ring-2 ring-white' : ''} ${pulse} relative group/cell flex flex-col`;
         el.innerHTML = `
             <div class="flex justify-between items-center mb-2">
                 <span class="text-[8px] font-bold uppercase tracking-widest opacity-70">CELL ${String(cell.id).padStart(2, '0')}</span>
+                <span class="text-[8px] font-black ${health < 50 ? 'text-adi-red' : 'text-adi-green'}">${health.toFixed(0)}%</span>
                 <div class="flex gap-1">
                     ${cell.regenHistory && cell.regenHistory.length > 0 ? `
                         <button class="view-history-btn w-3 h-3 bg-adi-magenta/20 border border-adi-magenta/40 rounded-[1px] flex items-center justify-center hover:bg-adi-magenta/40 transition-colors" title="View Regen History">
@@ -661,8 +961,22 @@ function renderCellGrid(bank: BatteryBank) {
                 </div>
             </div>
             <div class="text-xl font-black tabular-nums tracking-tighter mb-1">${cell.voltage.toFixed(2)}V</div>
-            <div class="flex justify-between items-end">
-                <div class="text-[9px] font-mono opacity-60">${cell.temp.toFixed(1)}°C</div>
+            
+            ${cell.regenStatus === 'ONGOING' ? `
+                <div class="w-full bg-black/40 h-1.5 rounded-full overflow-hidden mb-2 border border-adi-cyan/30">
+                    <div class="h-full bg-adi-cyan animate-pulse" style="width: ${cell.regenProgress || 0}%"></div>
+                </div>
+            ` : cell.regenStatus === 'SUCCESS' ? `
+                <div class="w-full bg-adi-green/20 border border-adi-green/40 text-adi-green text-[6px] font-bold uppercase text-center py-0.5 mb-2 rounded-[1px]">Regen Success</div>
+            ` : cell.regenStatus === 'FAILURE' ? `
+                <div class="w-full bg-adi-red/20 border border-adi-red/40 text-adi-red text-[6px] font-bold uppercase text-center py-0.5 mb-2 rounded-[1px]">Regen Failed</div>
+            ` : ''}
+
+            <div class="flex justify-between items-end flex-1">
+                <div class="flex flex-col">
+                    <div class="text-[9px] font-mono opacity-60">${cell.temp.toFixed(1)}°C</div>
+                    <div class="text-[7px] font-mono text-adi-cyan/60">${cell.ir.toFixed(2)}mΩ</div>
+                </div>
                 <div class="flex flex-col items-end gap-1">
                     <div class="flex gap-1 items-center">
                         ${avgFxImprovement > 0 ? `
@@ -678,6 +992,14 @@ function renderCellGrid(bank: BatteryBank) {
                     <div class="text-[6px] text-white/20 font-bold uppercase">Cycles: ${cell.regenHistory?.length || 0}</div>
                 </div>
             </div>
+            
+            <div class="mt-2 pt-2 border-t border-white/5 flex justify-between items-center">
+                <div class="flex items-center gap-1">
+                    <div class="w-1.5 h-1.5 rounded-full ${cell.v2gStatus === 'ENGAGED' ? 'bg-adi-magenta animate-pulse' : cell.v2gStatus === 'READY' ? 'bg-adi-green' : 'bg-gray-600'}"></div>
+                    <span class="text-[7px] font-bold uppercase ${cell.v2gStatus === 'ENGAGED' ? 'text-adi-magenta' : cell.v2gStatus === 'READY' ? 'text-adi-green' : 'text-gray-500'}">${cell.v2gStatus || 'OFFLINE'}</span>
+                </div>
+                <span class="text-[7px] text-gray-500 font-mono">V2G: ${cell.v2gCycles || 0}</span>
+            </div>
         `;
         el.onclick = (e) => {
             const target = e.target as HTMLElement;
@@ -686,13 +1008,14 @@ function renderCellGrid(bank: BatteryBank) {
                 return;
             }
             
-            if (selectedCells.includes(cell.id)) {
-                selectedCells = selectedCells.filter(id => id !== cell.id);
+            if (selectedCells.has(cell.id)) {
+                selectedCells.delete(cell.id);
             } else {
-                selectedCells.push(cell.id);
+                selectedCells.add(cell.id);
             }
             renderCellGrid(bank);
             updateRegenButton();
+            updateCellBatchToolbar();
         };
         cellGrid.appendChild(el);
     });
@@ -700,12 +1023,39 @@ function renderCellGrid(bank: BatteryBank) {
 }
 
 function updateRegenButton() {
-    regenCellsBtn.disabled = selectedCells.length === 0;
-    regenCellsBtn.innerText = selectedCells.length > 0 ? `REGENERATE ${selectedCells.length} CELLS` : 'SELECT CELLS';
+    regenCellsBtn.disabled = selectedCells.size === 0;
+    regenCellsBtn.innerText = selectedCells.size > 0 ? `REGENERATE ${selectedCells.size} CELLS` : 'SELECT CELLS';
 }
+
+const cellBatchToolbar = document.getElementById('cell-batch-toolbar')!;
+const cellBatchCount = document.getElementById('cell-batch-count')!;
+const cellBatchRepairBtn = document.getElementById('cell-batch-repair-btn') as HTMLButtonElement;
+const cellBatchV2GBtn = document.getElementById('cell-batch-v2g-btn') as HTMLButtonElement;
+
 
 cellInspectorClose.onclick = () => cellInspectorModal.classList.add('hidden');
 
+cellBatchRepairBtn.onclick = () => {
+    regenCellsBtn.onclick?.(new MouseEvent('click'));
+};
+
+cellBatchV2GBtn.onclick = () => {
+    const bank = batteryData[selectedIndex];
+    if (!bank || !bank.cells) return;
+    
+    bank.cells.forEach(c => {
+        if (selectedCells.has(c.id)) {
+            c.v2gStatus = V2GStatus.READY;
+        }
+    });
+    
+    addLog(`V2G SYNCED FOR ${selectedCells.size} CELLS IN B${bank.id}.`, "green");
+    
+    selectedCells.clear();
+    renderCellGrid(bank);
+    updateCellBatchToolbar();
+    updateRegenButton();
+};
 regenCellsBtn.onclick = () => {
     const bank = batteryData[selectedIndex]; // Currently selected bank in main matrix
     if (!bank.cells) return;
@@ -713,57 +1063,103 @@ regenCellsBtn.onclick = () => {
     const avgVoltage = batteryData.reduce((a, b) => a + parseFloat(b.voltage), 0) / batteryData.length;
     const preHealth = calculateBHS(bank, avgVoltage);
 
-    addLog(`CELL REGEN INITIATED: ${selectedCells.length} UNITS`, "cyan");
+    addLog(`CELL REGEN INITIATED: ${selectedCells.size} UNITS`, "cyan");
     
-    // Simulate regen
-    bank.cells = bank.cells.map(c => {
-        if (selectedCells.includes(c.id)) {
-            const pre = { voltage: c.voltage, temp: c.temp, fx: c.fx };
-            const post = { 
-                voltage: 4.1 + Math.random() * 0.1, 
-                temp: 24 + Math.random() * 2,
-                fx: Math.max(0.001, c.fx * 0.1) // 90% reduction in entropy
-            };
+    const cellsToRegen = Array.from(selectedCells);
+    bank.cells.forEach(c => {
+        if (cellsToRegen.includes(c.id)) {
+            c.regenStatus = 'ONGOING';
+            c.regenProgress = 0;
+        }
+    });
+    
+    selectedCells.clear();
+    updateRegenButton();
+    updateCellBatchToolbar();
+    renderCellGrid(bank);
+
+    let progress = 0;
+    const interval = setInterval(() => {
+        progress += 10 + Math.random() * 15;
+        if (progress >= 100) {
+            clearInterval(interval);
             
-            const history = c.regenHistory || [];
-            history.push({
+            bank.cells!.forEach(c => {
+                if (cellsToRegen.includes(c.id)) {
+                    const isSuccess = Math.random() > 0.05; // 5% chance of failure
+                    if (isSuccess) {
+                        const pre = { voltage: c.voltage, temp: c.temp, fx: c.fx };
+                        const post = { 
+                            voltage: 4.1 + Math.random() * 0.1, 
+                            temp: 24 + Math.random() * 2,
+                            fx: Math.max(0.001, c.fx * 0.1) // 90% reduction in entropy
+                        };
+                        
+                        const history = c.regenHistory || [];
+                        history.push({
+                            timestamp: Date.now(),
+                            date: new Date().toLocaleTimeString(),
+                            pre,
+                            post
+                        });
+
+                        Object.assign(c, {
+                            ...post,
+                            status: 'GOOD',
+                            regenHistory: history,
+                            regenStatus: 'SUCCESS',
+                            regenProgress: 100
+                        });
+                    } else {
+                        c.regenStatus = 'FAILURE';
+                        c.regenProgress = 100;
+                    }
+                }
+            });
+            
+            renderCellGrid(bank);
+            addLog(`CELL REGEN COMPLETE: OPTIMAL PARAMETERS RESTORED`, "green");
+            
+            const postHealth = calculateBHS(bank, avgVoltage);
+            bank.repairHistory.push({
                 timestamp: Date.now(),
                 date: new Date().toLocaleTimeString(),
-                pre,
-                post
+                success: true,
+                type: 'CELL_REGEN',
+                preHealth,
+                postHealth
             });
 
-            return { ...c, status: 'GOOD', ...post, regenHistory: history };
+            // Check if bank health improves
+            const criticals = bank.cells!.filter(c => c.status === 'CRITICAL').length;
+            if (criticals === 0 && bank.healthPrediction === 'REGEN_REQ') {
+                bank.healthPrediction = 'STABLE';
+                bank.predictedFailureDate = undefined;
+                renderMatrix();
+                addLog(`BANK B${String(bank.id).padStart(2, '0')} HEALTH RESTORED`, "green");
+            }
+            renderAnalytics();
+            
+            // Clear status after 3 seconds
+            setTimeout(() => {
+                bank.cells!.forEach(c => {
+                    if (cellsToRegen.includes(c.id)) {
+                        c.regenStatus = undefined;
+                        c.regenProgress = undefined;
+                    }
+                });
+                renderCellGrid(bank);
+            }, 3000);
+            
+        } else {
+            bank.cells!.forEach(c => {
+                if (cellsToRegen.includes(c.id)) {
+                    c.regenProgress = progress;
+                }
+            });
+            renderCellGrid(bank);
         }
-        return c;
-    });
-
-    // Recalculate bank stats based on cells? 
-    // For now just visual update
-    renderCellGrid(bank);
-    selectedCells = [];
-    updateRegenButton();
-    addLog(`CELL REGEN COMPLETE: OPTIMAL PARAMETERS RESTORED`, "green");
-    
-    const postHealth = calculateBHS(bank, avgVoltage);
-    bank.repairHistory.push({
-        timestamp: Date.now(),
-        date: new Date().toLocaleTimeString(),
-        success: true,
-        type: 'CELL_REGEN',
-        preHealth,
-        postHealth
-    });
-
-    // Check if bank health improves
-    const criticals = bank.cells.filter(c => c.status === 'CRITICAL').length;
-    if (criticals === 0 && bank.healthPrediction === 'REGEN_REQ') {
-        bank.healthPrediction = 'STABLE';
-        bank.predictedFailureDate = undefined;
-        renderMatrix();
-        addLog(`BANK B${String(bank.id).padStart(2, '0')} HEALTH RESTORED`, "green");
-    }
-    renderAnalytics();
+    }, 200);
 };
 const simStartBtn = document.getElementById('sim-start-btn') as HTMLButtonElement;
 const simLog = document.getElementById('sim-log')!;
@@ -800,7 +1196,10 @@ function calculateBHS(bank: BatteryBank, fleetAvgVoltage: number): number {
     // Stability is high if deviation < 0.05V, drops significantly after 0.1V
     const stabilityScore = Math.max(0, 100 - (deviation * 400)); 
 
-    const bhs = (fxScore * 0.7) + (irScore * 0.2) + (stabilityScore * 0.1);
+    // 4. V2G Cycle Wear (Small impact on overall BHS, but affects prediction)
+    const cycleScore = Math.max(0, 100 - (bank.v2gCycles || 0) * 0.1);
+
+    const bhs = (fxScore * 0.65) + (irScore * 0.2) + (stabilityScore * 0.1) + (cycleScore * 0.05);
     return Math.min(100, Math.max(0, bhs));
 }
 
@@ -811,6 +1210,28 @@ function calculateCellBHS(cell: BatteryCell, bankAvgVoltage: number): number {
     
     const bhs = (fxScore * 0.7) + (stabilityScore * 0.3);
     return Math.min(100, Math.max(0, bhs));
+}
+
+function renderMineralRecovery() {
+    const valLi = document.getElementById('val-lithium');
+    const barLi = document.getElementById('bar-lithium');
+    const valCo = document.getElementById('val-cobalt');
+    const barCo = document.getElementById('bar-cobalt');
+    const valNi = document.getElementById('val-nickel');
+    const barNi = document.getElementById('bar-nickel');
+
+    if (valLi && barLi) {
+        valLi.innerText = `${mineralData.lithium.toFixed(2)} kg`;
+        barLi.style.width = `${(mineralData.lithium / mineralData.lithiumTarget) * 100}%`;
+    }
+    if (valCo && barCo) {
+        valCo.innerText = `${mineralData.cobalt.toFixed(2)} kg`;
+        barCo.style.width = `${(mineralData.cobalt / mineralData.cobaltTarget) * 100}%`;
+    }
+    if (valNi && barNi) {
+        valNi.innerText = `${mineralData.nickel.toFixed(2)} kg`;
+        barNi.style.width = `${(mineralData.nickel / mineralData.nickelTarget) * 100}%`;
+    }
 }
 
 function renderFleetSummary() {
@@ -868,7 +1289,7 @@ function renderFleetSummary() {
                 <span class="text-[8px] text-adi-magenta animate-pulse font-bold">● LIVE_DATA</span>
             </div>
             
-            <div class="grid grid-cols-2 gap-4 mb-2">
+            <div class="grid grid-cols-3 gap-2 mb-2">
                 <div class="flex flex-col">
                     <span class="text-[7px] text-gray-400 uppercase font-black tracking-widest opacity-60">Fleet Health</span>
                     <div class="flex items-baseline gap-1">
@@ -876,8 +1297,15 @@ function renderFleetSummary() {
                         <span class="text-[9px] text-gray-500 font-bold">%</span>
                     </div>
                 </div>
+                <div class="flex flex-col text-center">
+                    <span class="text-[7px] text-gray-400 uppercase font-black tracking-widest opacity-60">V2G Active</span>
+                    <div class="flex items-baseline justify-center gap-1">
+                        <span class="text-2xl font-black ${v2gActiveCount > 0 ? 'text-adi-magenta animate-pulse' : 'text-gray-600'} tabular-nums tracking-tighter">${v2gActiveCount}</span>
+                        <span class="text-[9px] text-gray-500 font-bold">V2G</span>
+                    </div>
+                </div>
                 <div class="flex flex-col text-right">
-                    <span class="text-[7px] text-gray-400 uppercase font-black tracking-widest opacity-60">Regen Required</span>
+                    <span class="text-[7px] text-gray-400 uppercase font-black tracking-widest opacity-60">Regen Req</span>
                     <div class="flex items-baseline justify-end gap-1">
                         <span class="text-2xl font-black ${regenReqCount > 0 ? 'text-adi-red animate-pulse' : 'text-adi-green'} tabular-nums tracking-tighter">${regenReqCount}</span>
                         <span class="text-[9px] text-gray-500 font-bold">UNITS</span>
@@ -886,10 +1314,6 @@ function renderFleetSummary() {
             </div>
 
             <div class="flex justify-between items-end border-t border-white/10 pt-2">
-                <div class="flex flex-col">
-                    <span class="text-[7px] text-gray-400 uppercase font-black tracking-widest opacity-60">Fleet ROI</span>
-                    <div class="flex items-baseline gap-1">
-                        <span class="text-sm font-bold text-adi-green tabular-nums leading-tight">$${estimatedSavings.toFixed(0)}</span>
                         <span class="text-[9px] text-white/30 font-bold">%</span>
                     </div>
                 </div>
@@ -904,21 +1328,6 @@ function renderFleetSummary() {
                 <div class="h-full bg-adi-green shadow-[0_0_8px_rgba(0,255,65,0.4)]" style="width: ${(healthyCount/count)*100}%"></div>
                 <div class="h-full bg-adi-gold shadow-[0_0_8px_rgba(255,215,0,0.4)]" style="width: ${(warningCount/count)*100}%"></div>
                 <div class="h-full bg-adi-red shadow-[0_0_8px_rgba(255,51,51,0.4)]" style="width: ${(criticalCount/count)*100}%"></div>
-            </div>
-
-            <div class="flex justify-between items-center mt-1 border-t border-white/5 pt-1">
-                <div class="flex items-center gap-1">
-                    <div class="w-1.5 h-1.5 bg-adi-green/40 border border-adi-green/60 rounded-full"></div>
-                    <span class="text-[6px] text-gray-500 uppercase font-black">STABLE</span>
-                </div>
-                <div class="flex items-center gap-1">
-                    <div class="w-1.5 h-1.5 bg-adi-gold border border-adi-gold/60 rounded-full"></div>
-                    <span class="text-[6px] text-gray-500 uppercase font-black">AT_RISK</span>
-                </div>
-                <div class="flex items-center gap-1">
-                    <div class="w-1.5 h-1.5 bg-adi-red animate-pulse border border-adi-red/60 rounded-full"></div>
-                    <span class="text-[6px] text-gray-500 uppercase font-black">REGEN_REQ</span>
-                </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3 border-t border-white/5 pt-3">
@@ -988,13 +1397,57 @@ filterAllBtn.onclick = () => {
     renderMatrix();
 };
 
+function renderMainCharts() {
+    const cRoot = getRoot('voltage-chart-root');
+    const fRoot = getRoot('fx-chart-root');
+    const tRoot = getRoot('temp-chart-root');
+    const bhsMainRoot = getRoot('bhs-main-chart-root');
+    
+    if (cRoot) cRoot.render(<VoltageChart data={[...chartHistory]} selectedIndex={selectedIndex} />);
+    if (fRoot) fRoot.render(<FactorXChart data={[...fxHistory]} />);
+    if (tRoot) tRoot.render(<TemperatureChart data={[...tempHistory]} selectedIndex={selectedIndex} />);
+    
+    const selectedBank = batteryData[selectedIndex];
+    if (bhsMainRoot && selectedBank && selectedBank.bhsHistory) {
+        bhsMainRoot.render(<BHSTrendChart data={selectedBank.bhsHistory} repairs={selectedBank.repairHistory} />);
+    }
+}
+
 function renderMatrix() {
+    if (!matrix) return;
+    const batchToolbar = document.getElementById('batch-toolbar')!;
     matrix.innerHTML = '';
+    
+    if (selectedBankIds.size > 0) {
+        batchToolbar.classList.remove('hidden');
+    } else {
+        batchToolbar.classList.add('hidden');
+    }
+    
+    // Emergency data recovery to ensure matrix never disappears for hackathon
+    if (!batteryData || batteryData.length === 0) {
+        addLog("EMERGENCY DATA RECOVERY INITIATED", "red");
+        batteryData = loadData();
+    }
+
     const fleetAvgV = batteryData.reduce((a, b) => a + parseFloat(b.voltage), 0) / batteryData.length;
+    
+    // Update V2G summary counts
+    const engagedCount = batteryData.filter(b => b.v2gStatus === V2GStatus.ENGAGED).length;
+    const readyCount = batteryData.filter(b => b.v2gStatus === V2GStatus.READY).length;
+    const offlineCount = batteryData.filter(b => b.v2gStatus === V2GStatus.OFFLINE || !b.v2gStatus).length;
+    
+    if (v2gEngagedCount) v2gEngagedCount.innerText = engagedCount.toString();
+    if (v2gReadyCount) v2gReadyCount.innerText = readyCount.toString();
+    if (v2gOfflineCount) v2gOfflineCount.innerText = offlineCount.toString();
+    if (headerV2GEngaged) headerV2GEngaged.innerText = engagedCount.toString();
+    if (headerV2GReady) headerV2GReady.innerText = readyCount.toString();
+    if (headerV2GOffline) headerV2GOffline.innerText = offlineCount.toString();
 
     batteryData.forEach((d, i) => {
-        if (isRegenFilterActive && d.healthPrediction !== 'REGEN_REQ') return;
-        if (isV2GFilterActive && d.v2gStatus !== 'READY' && d.v2gStatus !== 'ENGAGED') return;
+        // Instead of skipping, we flag for dimming to preserve 32-unit visual structure
+        const isFilteredOut = (isRegenFilterActive && d.healthPrediction !== 'REGEN_REQ') ||
+                              (isV2GFilterActive && d.v2gStatus !== V2GStatus.READY && d.v2gStatus !== V2GStatus.ENGAGED);
 
         const cell = document.createElement('div');
         const repairingNow = isRepairing && i === selectedIndex;
@@ -1014,9 +1467,9 @@ function renderMatrix() {
             statusClass = 'status-repairing';
         }
 
-        const isSelected = i === selectedIndex;
-        const isEngaged = d.v2gStatus === 'ENGAGED';
-        const isReady = d.v2gStatus === 'READY';
+        const isSelected = selectedBankIds.has(d.id);
+        const isEngaged = d.v2gStatus === V2GStatus.ENGAGED;
+        const isReady = d.v2gStatus === V2GStatus.READY;
         const isRegenReq = d.healthPrediction === 'REGEN_REQ';
         
         let isAtRiskWithin7 = false;
@@ -1024,12 +1477,10 @@ function renderMatrix() {
             isAtRiskWithin7 = true;
         } else if (d.predictedFailureDate && d.predictedFailureDate !== '> 30 DAYS') {
             const today = new Date();
-            today.setHours(0, 0, 0, 0);
             const failDate = new Date(d.predictedFailureDate);
-            failDate.setHours(0, 0, 0, 0);
-            const diffTime = failDate.getTime() - today.getTime();
+            const diffTime = Math.abs(failDate.getTime() - today.getTime());
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-            if (diffDays >= 0 && diffDays <= 7) isAtRiskWithin7 = true;
+            if (diffDays <= 7) isAtRiskWithin7 = true;
         }
 
         const isAtRisk = d.healthPrediction === 'AT_RISK' || isAtRiskWithin7;
@@ -1037,40 +1488,49 @@ function renderMatrix() {
         const isUndoable = undoSnapshot && undoTargetIndex === i;
 
         let extraClasses = '';
-        if (isRegenReq) extraClasses += ' border-adi-red shadow-[0_0_15px_rgba(255,51,51,0.5)] animate-pulse';
-        else if (isAtRiskWithin7) extraClasses += ' border-adi-red shadow-[0_0_15px_rgba(255,51,51,0.5)] animate-pulse';
-        else if (isAtRisk) extraClasses += ' border-adi-gold shadow-[0_0_10px_rgba(255,215,0,0.3)]';
+        if (isRegenReq) extraClasses += ' border-adi-red shadow-[0_0_10px_rgba(255,51,51,0.4)] animate-pulse';
+        else if (isAtRiskWithin7) extraClasses += ' border-adi-red shadow-[0_0_10px_rgba(255,51,51,0.4)] animate-pulse';
+        else if (isAtRisk) extraClasses += ' border-adi-gold shadow-[0_0_10px_rgba(255,215,0,0.2)]';
         else if (isDegrading) extraClasses += ' border-adi-gold/50';
         else if (isUndoable) extraClasses += ' border-adi-cyan shadow-[0_0_15px_rgba(0,242,255,0.3)]';
 
-        const v2gStatus = d.v2gStatus || 'OFFLINE';
-        const v2gStatusBg = v2gStatus === 'ENGAGED' ? 'bg-adi-magenta text-black shadow-[0_0_5px_rgba(255,0,255,0.5)] animate-pulse' : (v2gStatus === 'READY' ? 'bg-adi-green text-black' : 'bg-gray-800 text-gray-500 border border-white/10');
-        const v2gDot = v2gStatus === 'ENGAGED' ? '⚡' : (v2gStatus === 'READY' ? '●' : '○');
-        const v2gIndicator = `<div class="text-[6px] ${v2gStatusBg} font-black uppercase tracking-wider px-1.5 py-0.5 rounded-[2px] mt-1 w-fit flex items-center gap-1">${v2gDot} ${v2gStatus}</div>`;
+        const v2gStatus = d.v2gStatus || V2GStatus.OFFLINE;
+        const v2gStatusBg = v2gStatus === V2GStatus.ENGAGED ? 'bg-adi-magenta text-black shadow-[0_0_15px_rgba(255,0,255,0.6)] animate-pulse' : 
+                          (v2gStatus === V2GStatus.READY ? 'bg-adi-green/60 text-black' : 
+                          'bg-adi-red/20 text-adi-red/80 border border-adi-red/30');
+        const v2gIcon = v2gStatus === V2GStatus.ENGAGED ? 
+            `<svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>` : 
+            (v2gStatus === V2GStatus.READY ? 
+            `<svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>` : 
+            `<svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`);
+        const v2gIndicator = `<div class="text-[8px] ${v2gStatusBg} font-black uppercase tracking-widest px-2 py-0.5 rounded-[2px] mt-1 w-fit flex items-center gap-1 border border-white/10 transition-all duration-300 hover:scale-105">${v2gIcon} ${v2gStatus}</div>`;
 
         // Only apply V2G border styles if no critical health warning, unless engaged (engaged overrides)
         const hasHealthWarning = isRegenReq || isAtRisk || isDegrading;
         const showV2GStyle = !hasHealthWarning || isEngaged;
 
-        cell.className = `matrix-cell working-pulse p-2 h-20 rounded-sm flex flex-col justify-between cursor-pointer group ${isSelected ? 'selected' : ''} ${statusClass} ${showV2GStyle && isEngaged ? 'v2g-engaged' : ''} ${showV2GStyle && isReady ? 'v2g-ready' : ''} ${showV2GStyle && v2gStatus === 'OFFLINE' ? 'v2g-offline' : ''} ${extraClasses}`;
+        cell.className = `matrix-cell working-pulse p-2 h-20 rounded-sm flex flex-col justify-between cursor-pointer group ${isSelected ? 'selected' : ''} ${statusClass} ${showV2GStyle && isEngaged ? 'v2g-engaged' : ''} ${showV2GStyle && isReady ? 'v2g-ready' : ''} ${showV2GStyle && v2gStatus === V2GStatus.OFFLINE ? 'v2g-offline' : ''} ${extraClasses} ${isFilteredOut ? 'opacity-20 grayscale pointer-events-none' : ''}`;
         
         const tempVal = parseFloat(d.temp);
         const tempColorClass = tempVal > 40 ? 'text-adi-red' : (tempVal < 25 ? 'text-adi-cyan' : 'text-adi-green');
 
         let healthBadge = '';
         if (isRegenReq) {
-            healthBadge = `<div class="absolute top-0 right-0 bg-adi-red text-black text-[7px] font-black px-1.5 py-0.5 animate-pulse z-30 shadow-[0_0_5px_rgba(255,51,51,0.5)] rounded-bl-sm">REGEN_REQ</div>`;
+            healthBadge = `<div class="absolute top-0 right-0 bg-adi-red text-black text-[6px] font-black px-1 animate-pulse z-10 shadow-[0_0_3px_rgba(255,51,51,0.5)]">REGEN_REQ</div>`;
         } else if (isAtRiskWithin7 || d.healthPrediction === 'AT_RISK') {
-            const riskStyle = isAtRiskWithin7 ? 'bg-adi-red text-white animate-pulse shadow-[0_0_8px_rgba(255,51,51,0.6)]' : 'bg-adi-gold text-black';
-            healthBadge = `<div class="absolute top-0 right-0 ${riskStyle} text-[7px] font-black px-1.5 py-0.5 z-30 rounded-bl-sm">AT_RISK</div>`;
+            const riskStyle = isAtRiskWithin7 ? 'bg-adi-red text-white animate-pulse shadow-[0_0_5px_rgba(255,51,51,0.5)]' : 'bg-adi-gold text-black';
+            healthBadge = `<div class="absolute top-0 right-0 ${riskStyle} text-[6px] font-black px-1 z-10">AT_RISK</div>`;
         } else {
-            healthBadge = `<div class="absolute top-0 right-0 bg-adi-green/20 text-adi-green text-[7px] font-black px-1.5 py-0.5 z-30 border-l border-b border-adi-green/30 rounded-bl-sm">STABLE</div>`;
+            healthBadge = `<div class="absolute top-0 right-0 bg-adi-green/30 text-adi-green text-[6px] font-black px-1 z-10 border-l border-b border-adi-green/20">STABLE</div>`;
         }
 
         const undoBadge = isUndoable ? `<div class="absolute bottom-0 right-0 bg-adi-cyan text-black text-[6px] font-black px-1 z-10">UNDO_READY</div>` : '';
 
+        const v2gBadge = `<div class="absolute top-0 left-0 ${v2gStatus === V2GStatus.ENGAGED ? 'bg-adi-magenta animate-pulse shadow-[0_0_10px_rgba(255,0,255,0.8)]' : (v2gStatus === V2GStatus.READY ? 'bg-adi-green/40 text-white/80' : 'bg-adi-red/20 text-adi-red/60')} text-black text-[5px] font-black px-1 z-10 rounded-br-sm shadow-sm">V2G: ${v2gStatus}</div>`;
+
         cell.innerHTML = `
             ${healthBadge}
+            ${v2gBadge}
             ${undoBadge}
             <div class="cell-scanline"></div>
             <div class="flex justify-between items-start">
@@ -1092,7 +1552,7 @@ function renderMatrix() {
 
             <div class="flex justify-between items-baseline mt-auto">
                 <div class="flex flex-col"><span class="text-[8px] font-black text-white/70 tabular-nums">${d.voltage}V</span></div>
-                <button class="inspect-cell-btn text-[6px] text-adi-cyan border border-adi-cyan/30 px-1 rounded hover:bg-adi-cyan/10 uppercase tracking-wider z-20" data-id="${i}">INSPECT</button>
+                <button class="inspect-cell-btn text-[7px] text-black bg-adi-cyan border border-adi-cyan/30 px-2 py-0.5 rounded shadow-[0_0_10px_rgba(0,242,255,0.3)] hover:bg-white transition-all uppercase font-black z-20" data-id="${i}">INSPECT</button>
                 <div class="flex flex-col text-right"><span class="text-[7px] font-mono text-adi-cyan/50">${d.ir}mΩ</span></div>
             </div>
 
@@ -1103,17 +1563,25 @@ function renderMatrix() {
         cell.onclick = (e) => { 
             if(isRepairing) return; 
             const target = e.target as HTMLElement;
-            // Prevent triggering selection if inspect button clicked
-            if (target.classList.contains('inspect-cell-btn')) {
-                openCellInspector(i);
-                return;
-            }
+            
             if (target.classList.contains('view-history-btn')) {
                 showBankHistory(d);
                 return;
             }
 
-            selectedIndex = i; 
+            // Select the bank
+            if (e.ctrlKey || e.metaKey) {
+                if (selectedBankIds.has(d.id)) {
+                    selectedBankIds.delete(d.id);
+                } else {
+                    selectedBankIds.add(d.id);
+                }
+            } else {
+                selectedBankIds.clear();
+                selectedBankIds.add(d.id);
+                selectedIndex = i;
+            }
+            
             targetLabel.innerText = `B${String(d.id).padStart(2, '0')} NODE`; 
             
             const status = d.v2gStatus || 'READY';
@@ -1129,18 +1597,25 @@ function renderMatrix() {
             globalHistoryMode = false;
             if (historyModeBtn) historyModeBtn.innerText = "Fleet";
             switchTab('history');
+            
+            // Open inspector if only one selected
+            if (selectedBankIds.size === 1) {
+                openCellInspector(i);
+            }
             renderMatrix(); 
             renderRepairHistory(); 
+            renderFleetSummary();
         };
         matrix.appendChild(cell);
     });
     
     const avgFx = batteryData.reduce((a, b) => a + b.fx, 0) / 32;
-    const sohValue = (100 - (avgFx * 45)).toFixed(1);
+    const sohValue = (100 - (avgFx * 35)).toFixed(1);
     sohIndicator.innerText = `${sohValue} %`;
     sohIndicator.className = parseFloat(sohValue) > 90 ? 'text-3xl font-black text-adi-green tabular-nums' : (parseFloat(sohValue) > 70 ? 'text-3xl font-black text-adi-gold tabular-nums' : 'text-3xl font-black text-adi-red tabular-nums');
     
     renderFleetSummary();
+    renderMainCharts();
 }
 
 function renderRepairHistory() {
@@ -1255,7 +1730,7 @@ async function commitFusion(type: 'OFFLINE_FUSION' | 'DEEP_PULSE' = 'OFFLINE_FUS
 function startUndoCountdown() {
     if (undoTimeoutId) clearInterval(undoTimeoutId);
     undoRemaining = 10; 
-    undoBtn.classList.remove('hidden'); 
+    undoBtn.classList.remove('hidden', 'text-adi-red'); 
     undoBtn.classList.add('undo-active');
     addLog("UNDO WINDOW OPEN: 10s", "gold");
     
@@ -1385,7 +1860,7 @@ undoBtn.onclick = () => {
     addLog(`EMERGENCY ROLLBACK EXECUTED ON B${batteryData[undoTargetIndex].id}`, "red");
     triggerShake();
     clearInterval(undoTimeoutId); undoSnapshot = null; undoTargetIndex = null;
-    undoBtn.classList.add('hidden'); undoBtn.classList.remove('undo-active');
+    undoBtn.classList.add('hidden'); undoBtn.classList.remove('undo-active', 'text-adi-red');
     renderMatrix(); renderRepairHistory(); renderFleetSummary();
 };
 
@@ -1515,22 +1990,27 @@ v2gSyncBtn.onclick = async () => {
     gridStatus.innerText = "SYNCING";
     gridStatus.className = "text-xs text-adi-gold font-bold animate-pulse";
     
-    addLog(`INITIATING V2G SYNC FOR B${target.id}...`, "gold");
+    addLog(`INITIATING V2G STATUS UPDATE FOR B${target.id}...`, "gold");
     
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 1000));
     
-    if (target.v2gStatus === 'ENGAGED') {
-        target.v2gStatus = 'READY';
-        addLog(`V2G DISENGAGED FOR B${target.id}. NODE STANDBY.`, "green");
-        orbit.setMode('idle');
-    } else {
-        target.v2gStatus = 'ENGAGED';
+    // Cycle through: READY -> ENGAGED -> OFFLINE -> READY
+    if (target.v2gStatus === V2GStatus.READY) {
+        target.v2gStatus = V2GStatus.ENGAGED;
         addLog(`V2G ENGAGED FOR B${target.id}. ENERGY TRANSFER ACTIVE.`, "magenta");
         orbit.setMode('v2g');
+    } else if (target.v2gStatus === V2GStatus.ENGAGED) {
+        target.v2gStatus = V2GStatus.OFFLINE;
+        addLog(`V2G OFFLINE FOR B${target.id}. NODE ISOLATED FROM GRID.`, "red");
+        orbit.setMode('idle');
+    } else {
+        target.v2gStatus = V2GStatus.READY;
+        addLog(`V2G READY FOR B${target.id}. NODE STANDBY.`, "green");
+        orbit.setMode('idle');
     }
     
     gridStatus.innerText = target.v2gStatus;
-    gridStatus.className = `text-xs font-bold ${target.v2gStatus === 'ENGAGED' ? 'text-adi-magenta animate-pulse' : 'text-adi-gold'}`;
+    gridStatus.className = `text-xs font-bold ${target.v2gStatus === V2GStatus.ENGAGED ? 'text-adi-magenta animate-pulse' : (target.v2gStatus === V2GStatus.READY ? 'text-adi-green' : 'text-adi-red')}`;
     
     v2gSyncBtn.disabled = false; 
     renderMatrix();
@@ -1557,9 +2037,73 @@ bmsResetBtn.onclick = () => {
 };
 
 modalCancel.onclick = () => modalOverlay.classList.add('hidden');
-modalConfirm.onclick = () => { modalOverlay.classList.add('hidden'); commitFusion('OFFLINE_FUSION'); };
-repairBtn.onclick = () => { if(!isRepairing) modalOverlay.classList.remove('hidden'); };
-initiateBtn.onclick = () => commitFusion('DEEP_PULSE');
+const batchToolbar = document.getElementById('batch-toolbar')!;
+const batchRepairBtn = document.getElementById('batch-repair-btn') as HTMLButtonElement;
+const batchV2GBtn = document.getElementById('batch-v2g-btn') as HTMLButtonElement;
+
+// ... existing code ...
+
+batchRepairBtn.onclick = () => {
+    selectedBankIds.forEach(id => {
+        const bank = batteryData.find(b => b.id === id);
+        if (bank) {
+            // Initiate repair sequence
+            bank.repairHistory.push({
+                timestamp: Date.now(),
+                success: true,
+                resources: { cost: 50 },
+                notes: "Batch repair initiated"
+            });
+            bank.fx = 0.05; // Reset FX
+        }
+    });
+    selectedBankIds.clear();
+    renderMatrix();
+    renderFleetSummary();
+};
+
+batchV2GBtn.onclick = () => {
+    selectedBankIds.forEach(id => {
+        const bank = batteryData.find(b => b.id === id);
+        if (bank) {
+            // Apply common V2G configuration
+            bank.v2gStatus = V2GStatus.READY;
+            addLog(`V2G SYNCED FOR B${bank.id}.`, "green");
+        }
+    });
+    selectedBankIds.clear();
+    renderMatrix();
+    renderFleetSummary();
+};
+repairBtn.onclick = () => {
+    modalRiskText.innerHTML = `
+        CRITICAL: INITIATING HADRON REPAIR PULSE. THIS PROCEDURE CARRIES SIGNIFICANT RISKS:
+        <br/>- POTENTIAL LATTICE INSTABILITY
+        <br/>- IRREVERSIBLE STATE CHANGES IN BATTERY CELLS
+        <br/>- HIGH THERMAL SPIKES
+        <br/>- ENERGY DEPLETION
+        <br/><br/>CONFIRM LOCAL LATTICE FUSION? ALL CALCULATIONS PROCESSED ON-DEVICE. 100% AIRGAP MODE.
+    `;
+    modalOverlay.classList.remove('hidden');
+    modalConfirm.onclick = () => {
+        modalOverlay.classList.add('hidden');
+        commitFusion('OFFLINE_FUSION');
+    };
+};
+initiateBtn.onclick = () => {
+    modalRiskText.innerHTML = `
+        CRITICAL: INITIATING DEEP PULSE. THIS PROCEDURE CARRIES SIGNIFICANT RISKS:
+        <br/>- SYSTEM-WIDE ENTROPY RESET
+        <br/>- POTENTIAL DATA LOSS IN VOLATILE MEMORY
+        <br/>- HIGH POWER CONSUMPTION
+        <br/><br/>CONFIRM DEEP PULSE? ALL CALCULATIONS PROCESSED ON-DEVICE. 100% AIRGAP MODE.
+    `;
+    modalOverlay.classList.remove('hidden');
+    modalConfirm.onclick = () => {
+        modalOverlay.classList.add('hidden');
+        commitFusion('DEEP_PULSE');
+    };
+};
 historyModeBtn.onclick = () => { globalHistoryMode = !globalHistoryMode; historyModeBtn.innerText = globalHistoryMode ? "Node" : "Fleet"; renderRepairHistory(); };
 
 const modalConfirmFinal = document.getElementById('modal-confirm')!;
@@ -1574,7 +2118,6 @@ const alertBadge = document.getElementById('alert-badge')!;
 const historyControls = document.getElementById('history-controls')!;
 const taskControls = document.getElementById('task-controls')!;
 const alertControls = document.getElementById('alert-controls')!;
-const aiControls = document.getElementById('ai-controls')!;
 const cellRegenModal = document.getElementById('cell-regen-modal')!;
 const cellRegenClose = document.getElementById('cell-regen-close')!;
 const regenHistoryContent = document.getElementById('regen-history-content')!;
@@ -1583,6 +2126,251 @@ const regenBankIdDisplay = document.getElementById('regen-bank-id')!;
 const regenCycleCountDisplay = document.getElementById('regen-cycle-count')!;
 
 cellRegenClose.onclick = () => cellRegenModal.classList.add('hidden');
+
+// QR Modal Logic
+let qrRoot: any = null;
+openQrBtn.onclick = () => {
+    const currentUrl = window.location.href;
+    qrUrlDisplay.innerText = currentUrl;
+    const modalTitle = qrModalOverlay.querySelector('h3');
+    if (modalTitle) modalTitle.innerText = "System Access Node";
+    qrModalOverlay.classList.remove('hidden');
+    qrModalOverlay.classList.add('flex');
+    docsDownloadBtn.classList.add('hidden');
+    
+    if (!qrRoot) {
+        qrRoot = createRoot(qrContainer);
+    }
+    
+    qrRoot.render(
+        <QRCodeCanvas 
+            value={currentUrl} 
+            size={256}
+            level={"H"}
+            includeMargin={true}
+            imageSettings={{
+                src: "https://picsum.photos/seed/adi/64/64",
+                x: undefined,
+                y: undefined,
+                height: 48,
+                width: 48,
+                excavate: true,
+            }}
+        />
+    );
+};
+
+openDocsQrBtn.onclick = () => {
+    const docsUrl = "https://docs.adipro.ultimate/tech-specs-v2-sovereign";
+    qrUrlDisplay.innerText = "TECH DOCS: " + docsUrl;
+    const modalTitle = qrModalOverlay.querySelector('h3');
+    if (modalTitle) modalTitle.innerText = "Technological Documentation";
+    qrModalOverlay.classList.remove('hidden');
+    qrModalOverlay.classList.add('flex');
+    docsDownloadBtn.classList.remove('hidden');
+    
+    if (!qrRoot) {
+        qrRoot = createRoot(qrContainer);
+    }
+    
+    qrRoot.render(
+        <QRCodeCanvas 
+            value={docsUrl} 
+            size={256}
+            level={"H"}
+            includeMargin={true}
+            fgColor="#ff00ff"
+            imageSettings={{
+                src: "https://picsum.photos/seed/tech/64/64",
+                x: undefined,
+                y: undefined,
+                height: 48,
+                width: 48,
+                excavate: true,
+            }}
+        />
+    );
+};
+
+openStartupBtn.onclick = () => {
+    const startupUrl = window.location.href + "?mode=JURY_DEMO_2026";
+    qrUrlDisplay.innerText = "JURY STARTUP CHALLENGE 2026: " + startupUrl;
+    const modalTitle = qrModalOverlay.querySelector('h3');
+    if (modalTitle) modalTitle.innerText = "Jury Startup Challenge 2026";
+    qrModalOverlay.classList.remove('hidden');
+    qrModalOverlay.classList.add('flex');
+    docsDownloadBtn.classList.add('hidden');
+    
+    if (!qrRoot) {
+        qrRoot = createRoot(qrContainer);
+    }
+    
+    qrRoot.render(
+        <QRCodeCanvas 
+            value={startupUrl} 
+            size={256}
+            level={"H"}
+            includeMargin={true}
+            fgColor="#00ff41"
+            imageSettings={{
+                src: "https://picsum.photos/seed/startup/64/64",
+                x: undefined,
+                y: undefined,
+                height: 48,
+                width: 48,
+                excavate: true,
+            }}
+        />
+    );
+
+    runJuryDemo();
+};
+
+let isDemoRunning = false;
+function runJuryDemo() {
+    if (isDemoRunning) return;
+    isDemoRunning = true;
+    addLog("JURY DEMO SEQUENCE INITIATED", "gold");
+    addLog("CALIBRATING HEURISTIC CORE FOR PRESENTATION...", "cyan");
+    
+    // Step 1: Initial Scan
+    setTimeout(() => {
+        addLog("SCANNING FLEET NODES...", "cyan");
+        renderMatrix();
+    }, 1000);
+
+    // Step 2: Predictive Maintenance Alert
+    setTimeout(() => {
+        const targetBank = batteryData[4]; // Bank 05
+        if (targetBank) {
+            targetBank.healthPrediction = 'AT_RISK';
+            targetBank.predictedFailureDate = 'IMMINENT';
+            targetBank.degradationRate = 0.045;
+            targetBank.fx = 0.85; // Increase stress factor
+            addLog("PREDICTIVE ALERT: ANOMALY DETECTED IN NODE B05", "red");
+            addLog("FAILURE PROBABILITY: 88.4% | TIME TO FAILURE: < 48H", "red");
+            renderMatrix();
+            renderFleetSummary();
+        }
+    }, 3000);
+
+    // Step 3: V2G Grid Support
+    setTimeout(() => {
+        addLog("GRID DEMAND DETECTED: ENGAGING V2G FLEET SUPPORT", "magenta");
+        batteryData.forEach((b, i) => {
+            if (i % 4 === 0) {
+                b.v2gStatus = V2GStatus.ENGAGED;
+                b.v2gCycles = (b.v2gCycles || 0) + 1;
+            }
+        });
+        renderMatrix();
+        renderFleetSummary();
+    }, 6000);
+
+    // Step 4: Autonomous Regeneration
+    setTimeout(() => {
+        const targetBank = batteryData[4];
+        if (targetBank) {
+            targetBank.healthPrediction = 'REGEN_REQ';
+            addLog("INITIATING AUTONOMOUS REGENERATION ON NODE B05", "gold");
+            addLog("PULSE FREQUENCY: 12.4kHz | TARGETING SULPHATION LATTICE", "cyan");
+            renderMatrix();
+            renderFleetSummary();
+        }
+    }, 9000);
+
+    // Step 5: Recovery & Restoration
+    setTimeout(() => {
+        const targetBank = batteryData[4];
+        if (targetBank) {
+            targetBank.healthPrediction = 'STABLE';
+            targetBank.predictedFailureDate = undefined;
+            targetBank.degradationRate = 0.002;
+            targetBank.fx = 0.05; // Reset stress factor
+            targetBank.voltage = "402.4V";
+            
+            // Add to repair history
+            targetBank.repairHistory.unshift({
+                timestamp: Date.now(),
+                date: new Date().toLocaleDateString(),
+                success: true,
+                type: "AUTONOMOUS_REGEN",
+                label: "JURY_DEMO_RECOVERY",
+                resources: { energy: 12.5, cost: 4.2, duration: 120 },
+                preHealth: 62.4,
+                postHealth: 99.8
+            });
+
+            addLog("REGENERATION COMPLETE: NODE B05 RESTORED", "green");
+            addLog("HEALTH INDEX: 99.8% | DEGRADATION NEUTRALIZED", "green");
+            renderMatrix();
+            renderFleetSummary();
+            renderRepairHistory();
+        }
+    }, 13000);
+
+    // Step 6: Final Status
+    setTimeout(() => {
+        addLog("DEMO SEQUENCE COMPLETE. SYSTEM PERFORMANCE: OPTIMAL", "green");
+        addLog("READY FOR JURY EVALUATION.", "gold");
+        
+        // Reset V2G after demo
+        setTimeout(() => {
+            batteryData.forEach(b => {
+                if (b.v2gStatus === V2GStatus.ENGAGED) b.v2gStatus = V2GStatus.READY;
+            });
+            renderMatrix();
+            renderFleetSummary();
+            isDemoRunning = false;
+        }, 5000);
+    }, 16000);
+}
+
+qrDownloadBtn.onclick = () => {
+    const canvas = qrContainer.querySelector('canvas');
+    if (canvas) {
+        const url = canvas.toDataURL("image/png");
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `adi-pro-qr-${Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        addLog("SYSTEM: QR IMAGE EXPORTED", "green");
+    }
+};
+
+docsDownloadBtn.onclick = () => {
+    const content = `ADI PRO ULTIMATE 2026 SOVEREIGN
+TECHNOLOGICAL DOCUMENTATION V2.0
+---------------------------------
+Sovereign Identity: Local G7 Node
+Integrity Protocol: Active
+Fleet Management: Enabled
+V2G Synchronization: Ready
+
+This document contains the technological specifications for the ADI PRO ULTIMATE 2026 SOVEREIGN system.
+All protocols are strictly sovereign and local.
+
+Generated: ${new Date().toISOString()}
+Node ID: ADI-PRO-SOV-2026
+`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "adi-pro-tech-docs.txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    addLog("SYSTEM: TECH DOCS DOWNLOADED", "magenta");
+};
+
+qrCloseBtn.onclick = () => {
+    qrModalOverlay.classList.add('hidden');
+    qrModalOverlay.classList.remove('flex');
+};
 
 function showCellRegenHistory(bankId: number, cell: BatteryCell) {
     regenCellIdDisplay.innerText = String(cell.id).padStart(2, '0');
@@ -1595,9 +2383,16 @@ function showCellRegenHistory(bankId: number, cell: BatteryCell) {
         regenHistoryContent.innerHTML = `<div class="text-center py-12 opacity-20 italic uppercase text-[10px] tracking-widest">No regeneration data available for this unit</div>`;
     } else {
         [...cell.regenHistory].reverse().forEach((entry, idx) => {
-            const vDiff = entry.post.voltage - entry.pre.voltage;
-            const tDiff = entry.post.temp - entry.pre.temp;
-            const fxDiff = ((entry.pre.fx - entry.post.fx) / entry.pre.fx * 100).toFixed(1);
+            const preV = entry.pre?.voltage ?? 0;
+            const postV = entry.post?.voltage ?? 0;
+            const preT = entry.pre?.temp ?? 0;
+            const postT = entry.post?.temp ?? 0;
+            const preFx = entry.pre?.fx ?? 0.001;
+            const postFx = entry.post?.fx ?? 0;
+            
+            const vDiff = postV - preV;
+            const tDiff = postT - preT;
+            const fxDiff = preFx > 0 ? ((preFx - postFx) / preFx * 100).toFixed(1) : "0.0";
             
             const entryEl = document.createElement('div');
             entryEl.className = 'bg-white/5 border border-white/10 p-4 rounded-sm animate-fadeIn';
@@ -1609,17 +2404,17 @@ function showCellRegenHistory(bankId: number, cell: BatteryCell) {
                 <div class="grid grid-cols-3 gap-4">
                     <div class="space-y-1">
                         <div class="text-[7px] text-gray-500 uppercase font-bold">Voltage</div>
-                        <div class="text-xs font-black text-white">${entry.pre.voltage.toFixed(2)}V → <span class="text-adi-green">${entry.post.voltage.toFixed(2)}V</span></div>
+                        <div class="text-xs font-black text-white">${preV.toFixed(2)}V → <span class="text-adi-green">${postV.toFixed(2)}V</span></div>
                         <div class="text-[7px] text-adi-green font-bold">+${vDiff.toFixed(2)}V GAIN</div>
                     </div>
                     <div class="space-y-1">
                         <div class="text-[7px] text-gray-500 uppercase font-bold">Temp</div>
-                        <div class="text-xs font-black text-white">${entry.pre.temp.toFixed(1)}°C → <span class="text-adi-cyan">${entry.post.temp.toFixed(1)}°C</span></div>
+                        <div class="text-xs font-black text-white">${preT.toFixed(1)}°C → <span class="text-adi-cyan">${postT.toFixed(1)}°C</span></div>
                         <div class="text-[7px] ${tDiff < 0 ? 'text-adi-cyan' : 'text-adi-red'} font-bold">${tDiff.toFixed(1)}°C DELTA</div>
                     </div>
                     <div class="space-y-1">
                         <div class="text-[7px] text-gray-500 uppercase font-bold">Factor X (Entropy)</div>
-                        <div class="text-xs font-black text-white">${entry.pre.fx.toFixed(3)} → <span class="text-adi-magenta">${entry.post.fx.toFixed(3)}</span></div>
+                        <div class="text-xs font-black text-white">${preFx.toFixed(3)} → <span class="text-adi-magenta">${postFx.toFixed(3)}</span></div>
                         <div class="text-[7px] text-adi-magenta font-bold">${fxDiff}% REDUCTION</div>
                     </div>
                 </div>
@@ -1693,7 +2488,7 @@ function showBankHistory(bank: BatteryBank) {
                     ${entry.resources ? `
                         <div class="space-y-1">
                             <div class="text-[7px] text-gray-500 uppercase font-bold">Resources Used</div>
-                            <div class="text-[8px] text-white/70 font-bold">${entry.resources.parts.join(', ')}</div>
+                            <div class="text-[8px] text-white/70 font-bold">${(entry.resources as any).parts ? (entry.resources as any).parts.join(', ') : `ENERGY: ${entry.resources.energy} // DUR: ${entry.resources.duration}s`}</div>
                         </div>
                     ` : ''}
                 </div>
@@ -1796,7 +2591,6 @@ const repairHistoryContainer = document.getElementById('repair-history-container
 const taskListContainer = document.getElementById('task-list-container')!;
 const analyticsContainer = document.getElementById('analytics-container')!;
 const alertsContainer = document.getElementById('alerts-container')!;
-const aiContainer = document.getElementById('ai-container')!;
 const alertsList = document.getElementById('alerts-list')!;
 const noAlertsMsg = document.getElementById('no-alerts-msg')!;
 const regenChartRoot = document.getElementById('regen-chart-root')!;
@@ -1806,10 +2600,18 @@ const newTaskForm = document.getElementById('new-task-form')!;
 const saveTaskBtn = document.getElementById('save-task-btn')!;
 const clearAlertsBtn = document.getElementById('clear-alerts-btn')!;
 const newTaskDesc = document.getElementById('new-task-desc') as HTMLInputElement;
+const newTaskNotes = document.getElementById('new-task-notes') as HTMLTextAreaElement;
 const newTaskPriority = document.getElementById('new-task-priority') as HTMLSelectElement;
+const newTaskDue = document.getElementById('new-task-due') as HTMLInputElement;
 const taskSortSelect = document.getElementById('task-sort-select') as HTMLSelectElement;
+const taskPriorityFilterSelect = document.getElementById('task-priority-filter') as HTMLSelectElement;
+const taskStatusFilterSelect = document.getElementById('task-status-filter') as HTMLSelectElement;
+const taskDueDateFilterSelect = document.getElementById('task-due-date-filter') as HTMLSelectElement;
 
 let taskSortMode: 'TIME' | 'PRIORITY_HIGH' | 'PRIORITY_LOW' = 'TIME';
+let taskPriorityFilter: 'ALL' | TaskPriority = 'ALL';
+let taskStatusFilter: 'ALL' | 'PENDING' | 'COMPLETED' = 'ALL';
+let taskDueDateFilter: 'ALL' | 'TODAY' | 'WEEK' | 'OVERDUE' | 'NONE' = 'ALL';
 let analyticsMetric: 'FX' | 'VOLTAGE' | 'TEMP' = 'FX';
 let lastTasksState: Task[] | null = null;
 let taskUndoTimeout: any = null;
@@ -1842,10 +2644,51 @@ function pushTaskUndo() {
     }, 10000); // 10s undo window
 }
 
+let selectedTaskIds: Set<string> = new Set();
+let expandedTaskIds: Set<string> = new Set();
+let justCompletedTaskId: string | null = null;
+
 function renderTasks() {
     tasksList.innerHTML = '';
     
     let displayTasks = [...tasks];
+
+    // Update bulk actions visibility
+    const bulkActions = document.getElementById('bulk-actions');
+    const selectedCount = document.getElementById('selected-count');
+    if (bulkActions && selectedCount) {
+        if (selectedTaskIds.size > 0) {
+            bulkActions.classList.remove('hidden');
+            selectedCount.innerText = `${selectedTaskIds.size} SELECTED`;
+        } else {
+            bulkActions.classList.add('hidden');
+        }
+    }
+
+    // Filtering
+    if (taskPriorityFilter !== 'ALL') {
+        displayTasks = displayTasks.filter(t => t.priority === taskPriorityFilter);
+    }
+    if (taskStatusFilter !== 'ALL') {
+        displayTasks = displayTasks.filter(t => t.status === taskStatusFilter);
+    }
+
+    if (taskDueDateFilter !== 'ALL') {
+        const now = Date.now();
+        const today = new Date(now).setHours(0, 0, 0, 0);
+        const endOfWeek = new Date(now).setDate(new Date(now).getDate() + 7);
+        
+        displayTasks = displayTasks.filter(t => {
+            if (taskDueDateFilter === 'NONE') return !t.dueDate;
+            if (!t.dueDate) return false;
+            
+            if (taskDueDateFilter === 'TODAY') return t.dueDate >= today && t.dueDate < today + 86400000;
+            if (taskDueDateFilter === 'WEEK') return t.dueDate >= today && t.dueDate <= endOfWeek;
+            if (taskDueDateFilter === 'OVERDUE') return t.dueDate < today && t.status !== 'COMPLETED';
+            return true;
+        });
+    }
+
     const pMap: Record<string, number> = { [TaskPriority.HIGH]: 3, [TaskPriority.MEDIUM]: 2, [TaskPriority.LOW]: 1 };
 
     if (taskSortMode === 'PRIORITY_HIGH') {
@@ -1856,46 +2699,223 @@ function renderTasks() {
         displayTasks.sort((a, b) => b.timestamp - a.timestamp);
     }
 
+    // Update sorting headers UI
+    const timeHeader = document.getElementById('sort-by-time-header');
+    const priorityHeader = document.getElementById('sort-by-priority-header');
+    
+    if (timeHeader) {
+        const timeText = timeHeader.querySelector('span');
+        const timeIcon = timeHeader.querySelector('svg');
+        if (taskSortMode === 'TIME') {
+            timeHeader.classList.add('text-adi-cyan');
+            timeHeader.classList.remove('text-white/60');
+            if (timeIcon) timeIcon.style.transform = 'rotate(0deg)';
+        } else {
+            timeHeader.classList.remove('text-adi-cyan');
+            timeHeader.classList.add('text-white/60');
+        }
+    }
+    
+    if (priorityHeader) {
+        const priorityText = priorityHeader.querySelector('span');
+        const priorityIcon = priorityHeader.querySelector('svg');
+        if (taskSortMode.startsWith('PRIORITY')) {
+            priorityHeader.classList.add('text-adi-cyan');
+            priorityHeader.classList.remove('text-white/60');
+            if (priorityIcon) {
+                priorityIcon.style.transform = taskSortMode === 'PRIORITY_LOW' ? 'rotate(180deg)' : 'rotate(0deg)';
+                priorityIcon.style.transition = 'transform 0.2s ease';
+            }
+        } else {
+            priorityHeader.classList.remove('text-adi-cyan');
+            priorityHeader.classList.add('text-white/60');
+            if (priorityIcon) priorityIcon.style.transform = 'rotate(0deg)';
+        }
+    }
+
+    const selectAll = document.getElementById('task-select-all') as HTMLInputElement;
+    if (selectAll) {
+        selectAll.checked = displayTasks.length > 0 && displayTasks.every(t => selectedTaskIds.has(t.id));
+    }
+
     displayTasks.forEach(t => {
         const el = document.createElement('div');
-        const pColor = t.priority === TaskPriority.HIGH ? 'text-adi-red border-adi-red/30 bg-adi-red/5' : (t.priority === TaskPriority.MEDIUM ? 'text-adi-gold border-adi-gold/30 bg-adi-gold/5' : 'text-adi-cyan border-adi-cyan/30 bg-adi-cyan/5');
-        const leftBorder = t.priority === TaskPriority.HIGH ? 'border-l-adi-red' : (t.priority === TaskPriority.MEDIUM ? 'border-l-adi-gold' : 'border-l-adi-cyan');
+        const isExpanded = expandedTaskIds.has(t.id);
+        const pBg = t.priority === TaskPriority.HIGH ? 'bg-adi-red/15' : (t.priority === TaskPriority.MEDIUM ? 'bg-adi-gold/15' : 'bg-adi-green/15');
+        const pText = t.priority === TaskPriority.HIGH ? 'text-adi-red' : (t.priority === TaskPriority.MEDIUM ? 'text-adi-gold' : 'text-adi-green');
+        const pTooltip = t.priority === TaskPriority.HIGH ? 'High Priority - Red' : (t.priority === TaskPriority.MEDIUM ? 'Medium Priority - Yellow' : 'Low Priority - Green');
+        const pBadge = t.priority === TaskPriority.HIGH ? `<span class="text-[6px] font-black bg-adi-red/30 text-adi-red border border-adi-red/50 px-1 rounded-[1px] ml-2 shadow-[0_0_5px_rgba(255,51,51,0.2)]" title="${pTooltip}">▲ CRITICAL</span>` : (t.priority === TaskPriority.MEDIUM ? `<span class="text-[6px] font-black bg-adi-gold/30 text-adi-gold border border-adi-gold/50 px-1 rounded-[1px] ml-2 shadow-[0_0_5px_rgba(255,215,0,0.2)]" title="${pTooltip}">◆ STANDARD</span>` : `<span class="text-[6px] font-black bg-adi-green/30 text-adi-green border border-adi-green/50 px-1 rounded-[1px] ml-2 shadow-[0_0_5px_rgba(0,255,65,0.2)]" title="${pTooltip}">▼ ROUTINE</span>`);
+        const leftBorder = t.priority === TaskPriority.HIGH ? 'border-l-adi-red' : (t.priority === TaskPriority.MEDIUM ? 'border-l-adi-gold' : 'border-l-adi-green');
+        const indicatorColor = t.priority === TaskPriority.HIGH ? 'bg-adi-red' : (t.priority === TaskPriority.MEDIUM ? 'bg-adi-gold' : 'bg-adi-green');
+        const indicatorShadow = t.priority === TaskPriority.HIGH ? 'shadow-[0_0_8px_rgba(255,51,51,0.6)]' : (t.priority === TaskPriority.MEDIUM ? 'shadow-[0_0_8px_rgba(255,215,0,0.6)]' : 'shadow-[0_0_8px_rgba(0,255,65,0.6)]');
         const statusColor = t.status === 'COMPLETED' ? 'text-adi-green' : 'text-gray-500';
         const opacity = t.status === 'COMPLETED' ? 'opacity-50' : 'opacity-100';
+        const isJustCompleted = t.id === justCompletedTaskId;
         
-        el.className = `flex justify-between items-center p-2 bg-white/5 border border-white/5 border-l-2 ${leftBorder} rounded-sm ${opacity} group hover:bg-white/10 transition-colors`;
+        const dueDateBadge = t.dueDate ? `
+            <div class="flex items-center gap-1 bg-adi-gold/10 border border-adi-gold/30 px-1.5 py-0.5 rounded-[1px] ml-2" title="Deadline: ${new Date(t.dueDate).toLocaleDateString()}">
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="text-adi-gold"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span class="text-[6px] font-black text-adi-gold/60 uppercase tracking-widest mr-0.5">DUE:</span>
+                <span class="text-[6px] font-black text-adi-gold uppercase tracking-widest">${new Date(t.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+            </div>
+        ` : '';
+        
+        const pSelectClasses = t.priority === TaskPriority.HIGH ? 'text-adi-red border-adi-red/30 bg-adi-red/5' : (t.priority === TaskPriority.MEDIUM ? 'text-adi-gold border-adi-gold/30 bg-adi-gold/5' : 'text-adi-green border-adi-green/30 bg-adi-green/5');
+        
+        const pOptions = [
+            { val: TaskPriority.LOW, label: 'ROUTINE', color: 'text-adi-green' },
+            { val: TaskPriority.MEDIUM, label: 'STANDARD', color: 'text-adi-gold' },
+            { val: TaskPriority.HIGH, label: 'CRITICAL', color: 'text-adi-red' }
+        ].map(p => 
+            `<option value="${p.val}" ${t.priority === p.val ? 'selected' : ''} class="bg-adi-panel ${p.color}">${p.label}</option>`
+        ).join('');
+
+        el.className = `flex flex-col p-2 ${pBg} border border-white/5 border-l-4 ${leftBorder} rounded-sm ${opacity} group hover:bg-white/20 transition-all cursor-pointer ${selectedTaskIds.has(t.id) ? 'ring-1 ring-adi-cyan/50 bg-adi-cyan/10' : ''} ${isJustCompleted ? 'task-complete-anim' : ''}`;
+        el.dataset.id = t.id;
         el.innerHTML = `
-            <div class="flex flex-col flex-1">
-                <span class="text-[9px] font-bold text-white uppercase tracking-wider ${t.status === 'COMPLETED' ? 'line-through' : ''}">${t.desc}</span>
-                <div class="flex items-center gap-2 mt-1">
-                    <span class="text-[7px] font-black border px-1.5 py-0.5 rounded-[1px] w-fit ${pColor} uppercase tracking-widest">${t.priority}</span>
-                    <span class="text-[6px] text-gray-600 uppercase font-bold">${new Date(t.timestamp).toLocaleDateString()}</span>
+            <div class="flex justify-between items-center w-full">
+                <div class="flex items-center gap-3 flex-1">
+                    <input type="checkbox" class="task-select-checkbox w-3 h-3 border border-white/20 bg-black rounded-sm appearance-none checked:bg-adi-cyan cursor-pointer transition-all" data-id="${t.id}" ${selectedTaskIds.has(t.id) ? 'checked' : ''}>
+                    <div class="flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full ${indicatorColor} ${indicatorShadow}" title="${pTooltip}"></div>
+                        <span class="text-[9px] font-bold ${pText} uppercase tracking-wider ${t.status === 'COMPLETED' ? 'line-through' : ''}">${t.desc}</span>
+                        ${pBadge}
+                        ${dueDateBadge}
+                        <span class="text-[7px] text-adi-cyan font-black ml-1 opacity-50 group-hover:opacity-100 transition-opacity">${isExpanded ? '[-]' : '[+]'}</span>
+                    </div>
+                </div>
+                <div class="flex gap-2 items-center">
+                    <button class="task-toggle-btn text-[10px] ${statusColor} hover:text-white font-black uppercase tracking-widest" data-id="${t.id}">
+                        [${t.status === 'COMPLETED' ? 'DONE' : 'PENDING'}]
+                    </button>
+                    <button class="task-edit-btn text-[10px] text-adi-cyan hover:text-white font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity" data-id="${t.id}">
+                        [EDIT]
+                    </button>
+                    <button class="task-delete-btn text-[10px] text-adi-red hover:text-white font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity" data-id="${t.id}">
+                        [DEL]
+                    </button>
                 </div>
             </div>
-            <div class="flex gap-2 items-center">
-                <button class="task-toggle-btn text-[10px] ${statusColor} hover:text-white font-black uppercase tracking-widest" data-id="${t.id}">
-                    [${t.status === 'COMPLETED' ? 'DONE' : 'PENDING'}]
-                </button>
-                <button class="task-edit-btn text-[10px] text-adi-cyan hover:text-white font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity" data-id="${t.id}">
-                    [EDIT]
-                </button>
-                <button class="task-delete-btn text-[10px] text-adi-red hover:text-white font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity" data-id="${t.id}">
-                    [DEL]
-                </button>
+            
+            <div class="task-details ${isExpanded ? 'block' : 'hidden'} mt-2 ml-6 border-t border-white/5 pt-2 space-y-2">
+                <div class="flex flex-col gap-1">
+                    <span class="text-[6px] text-gray-500 font-black uppercase tracking-widest">Protocol Notes</span>
+                    <textarea class="task-notes-edit w-full bg-black/40 border border-white/10 p-2 text-[7px] text-gray-400 uppercase italic leading-relaxed outline-none focus:border-adi-cyan/50 resize-none h-12 rounded-sm" data-id="${t.id}" placeholder="NO NOTES RECORDED...">${t.notes || ''}</textarea>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="flex flex-col gap-0.5">
+                        <span class="text-[6px] text-gray-500 font-black uppercase tracking-widest">Priority Node</span>
+                        <select class="task-priority-select text-[7px] font-black border px-1 py-0.5 rounded-[1px] w-fit ${pSelectClasses} uppercase tracking-widest bg-transparent outline-none cursor-pointer hover:bg-white/10 transition-colors" data-id="${t.id}">
+                            ${pOptions}
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-0.5">
+                        <span class="text-[6px] text-gray-500 font-black uppercase tracking-widest">Created</span>
+                        <span class="text-[7px] text-white font-mono uppercase tracking-widest">${new Date(t.timestamp).toLocaleDateString()}</span>
+                    </div>
+                    <div class="flex flex-col gap-0.5">
+                        <span class="text-[6px] text-adi-gold font-black uppercase tracking-widest">Deadline Node</span>
+                        <input type="date" class="task-due-edit text-[7px] font-black border border-adi-gold/30 px-1 py-0.5 rounded-[1px] w-fit text-adi-gold uppercase tracking-widest bg-transparent outline-none cursor-pointer hover:bg-white/10 transition-colors" data-id="${t.id}" value="${t.dueDate ? new Date(t.dueDate).toISOString().split('T')[0] : ''}">
+                    </div>
+                </div>
             </div>
         `;
+
+        el.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('button') || target.closest('input') || target.closest('select')) {
+                return;
+            }
+            
+            const id = el.dataset.id;
+            if (id) {
+                if (expandedTaskIds.has(id)) {
+                    expandedTaskIds.delete(id);
+                } else {
+                    expandedTaskIds.add(id);
+                }
+                renderTasks();
+            }
+        });
+
         tasksList.appendChild(el);
     });
 
     // Re-attach listeners
-    document.querySelectorAll('.task-toggle-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+    document.querySelectorAll('.task-select-checkbox').forEach(cb => {
+        cb.addEventListener('change', (e) => {
             const id = (e.target as HTMLElement).dataset.id;
+            if (id) {
+                if ((e.target as HTMLInputElement).checked) {
+                    selectedTaskIds.add(id);
+                } else {
+                    selectedTaskIds.delete(id);
+                }
+                renderTasks();
+            }
+        });
+    });
+
+    document.querySelectorAll('.task-notes-edit').forEach(textarea => {
+        textarea.addEventListener('input', (e) => {
+            const id = (e.target as HTMLElement).dataset.id;
+            const val = (e.target as HTMLTextAreaElement).value;
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                task.notes = val;
+                localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+            }
+        });
+        textarea.addEventListener('click', (e) => e.stopPropagation());
+    });
+
+    document.querySelectorAll('.task-due-edit').forEach(input => {
+        input.addEventListener('change', (e) => {
+            const id = (e.target as HTMLElement).dataset.id;
+            const val = (e.target as HTMLInputElement).value;
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                task.dueDate = val ? new Date(val).getTime() : undefined;
+                saveTasks();
+            }
+        });
+        input.addEventListener('click', (e) => e.stopPropagation());
+    });
+
+    document.querySelectorAll('.task-priority-select').forEach(select => {
+        select.addEventListener('change', (e) => {
+            const id = (e.target as HTMLElement).dataset.id;
+            const newPriority = (e.target as HTMLSelectElement).value as TaskPriority;
             const task = tasks.find(t => t.id === id);
             if (task) {
                 pushTaskUndo();
-                task.status = task.status === 'PENDING' ? 'COMPLETED' : 'PENDING';
+                task.priority = newPriority;
+                addLog(`PRIORITY UPDATED: ${task.desc} -> ${newPriority}`, "cyan");
                 saveTasks();
+            }
+        });
+    });
+
+    document.querySelectorAll('.task-toggle-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = (btn as HTMLElement).dataset.id;
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                pushTaskUndo();
+                const newStatus = task.status === 'PENDING' ? 'COMPLETED' : 'PENDING';
+                task.status = newStatus;
+                if (newStatus === 'COMPLETED') {
+                    justCompletedTaskId = id || null;
+                    addLog(`PROTOCOL COMPLETED: ${task.desc}`, "green");
+                } else {
+                    justCompletedTaskId = null;
+                }
+                saveTasks();
+                // Clear the flag after a short delay so it doesn't re-animate on every render
+                setTimeout(() => { 
+                    justCompletedTaskId = null; 
+                    renderTasks(); // Re-render to clear the animation class
+                }, 1000);
             }
         });
     });
@@ -1907,7 +2927,15 @@ function renderTasks() {
             if (task) {
                 editingTaskId = id;
                 newTaskDesc.value = task.desc;
+                newTaskNotes.value = task.notes || '';
                 newTaskPriority.value = task.priority;
+                if (task.dueDate) {
+                    const d = new Date(task.dueDate);
+                    const iso = d.toISOString().split('T')[0];
+                    newTaskDue.value = iso;
+                } else {
+                    newTaskDue.value = '';
+                }
                 newTaskForm.classList.remove('hidden');
                 saveTaskBtn.innerText = "UPDATE";
                 newTaskDesc.focus();
@@ -1918,8 +2946,10 @@ function renderTasks() {
     document.querySelectorAll('.task-delete-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const id = (e.target as HTMLElement).dataset.id;
+            if (!id) return;
             pushTaskUndo();
             tasks = tasks.filter(t => t.id !== id);
+            selectedTaskIds.delete(id);
             saveTasks();
             addLog(`PROTOCOL DELETED`, "red");
         });
@@ -1951,8 +2981,8 @@ function renderAnalytics() {
 
     if (totalRegens > 0) {
         const gains = allRegens.map(h => {
-            const pre = h.pre[metricKey];
-            const post = h.post[metricKey];
+            const pre = h.pre ? (h.pre as any)[metricKey] ?? 0 : 0;
+            const post = h.post ? (h.post as any)[metricKey] ?? 0 : 0;
             if (analyticsMetric === 'VOLTAGE') return post - pre;
             return pre - post; // For FX and Temp, lower is better
         });
@@ -1976,16 +3006,16 @@ function renderAnalytics() {
     
     const barData = recentHistory.map((h, i) => ({
         name: `#${totalRegens - recentHistory.length + i + 1}`,
-        pre: h.pre[metricKey],
-        post: h.post[metricKey],
+        pre: h.pre ? (h.pre as any)[metricKey] ?? 0 : 0,
+        post: h.post ? (h.post as any)[metricKey] ?? 0 : 0,
         label: `B${String(h.bankId).padStart(2, '0')}:C${String(h.cellId).padStart(2, '0')}`
     }));
 
     // Data for Trend (Last 20)
     const trendHistory = allRegens.slice(-20);
     const trendData = trendHistory.map((h, i) => {
-        const pre = h.pre[metricKey];
-        const post = h.post[metricKey];
+        const pre = h.pre ? (h.pre as any)[metricKey] ?? 0 : 0;
+        const post = h.post ? (h.post as any)[metricKey] ?? 0 : 0;
         const gain = analyticsMetric === 'VOLTAGE' ? (post - pre) : (pre - post);
         return {
             index: i + 1,
@@ -2060,8 +3090,7 @@ function switchTab(tabId: 'history' | 'tasks' | 'analytics' | 'alerts' | 'ai') {
         { id: 'history', el: tabHistory, controls: historyControls, container: repairHistoryContainer, activeClass: 'text-adi-magenta', activeBorder: 'border-adi-magenta' },
         { id: 'tasks', el: tabTasks, controls: taskControls, container: taskListContainer, activeClass: 'text-adi-cyan', activeBorder: 'border-adi-cyan' },
         { id: 'analytics', el: tabAnalytics, controls: analyticsControls, container: analyticsContainer, activeClass: 'text-adi-teal', activeBorder: 'border-adi-teal' },
-        { id: 'alerts', el: tabAlerts, controls: alertControls, container: alertsContainer, activeClass: 'text-adi-red', activeBorder: 'border-adi-red' },
-        { id: 'ai', el: tabAi, controls: aiControls, container: aiContainer, activeClass: 'text-adi-gold', activeBorder: 'border-adi-gold' }
+        { id: 'alerts', el: tabAlerts, controls: alertControls, container: alertsContainer, activeClass: 'text-adi-red', activeBorder: 'border-adi-red' }
     ];
 
     tabs.forEach(tab => {
@@ -2073,7 +3102,6 @@ function switchTab(tabId: 'history' | 'tasks' | 'analytics' | 'alerts' | 'ai') {
             if (tabId === 'tasks') renderTasks();
             if (tabId === 'analytics') renderAnalytics();
             if (tabId === 'alerts') renderAlerts();
-            if (tabId === 'ai') renderAI();
         } else {
             tab.el.classList.add('text-gray-500', 'border-transparent');
             tab.el.classList.remove(tab.activeClass, tab.activeBorder);
@@ -2087,7 +3115,6 @@ tabHistory.onclick = () => switchTab('history');
 tabTasks.onclick = () => switchTab('tasks');
 tabAnalytics.onclick = () => switchTab('analytics');
 tabAlerts.onclick = () => switchTab('alerts');
-tabAi.onclick = () => switchTab('ai');
 
 tabAlerts.onclick = () => {
     tabAlerts.classList.add('text-adi-red', 'border-adi-red');
@@ -2098,46 +3125,30 @@ tabAlerts.onclick = () => {
     tabTasks.classList.remove('text-adi-cyan', 'border-adi-cyan');
     tabAnalytics.classList.add('text-gray-500', 'border-transparent');
     tabAnalytics.classList.remove('text-adi-teal', 'border-adi-teal');
-    tabAi.classList.add('text-gray-500', 'border-transparent');
-    tabAi.classList.remove('text-adi-gold', 'border-adi-gold');
 
     alertControls.classList.remove('hidden');
     historyControls.classList.add('hidden');
     taskControls.classList.add('hidden');
     analyticsControls.classList.add('hidden');
-    aiControls.classList.add('hidden');
     
     alertsContainer.classList.remove('hidden');
     repairHistoryContainer.classList.add('hidden');
     taskListContainer.classList.add('hidden');
     analyticsContainer.classList.add('hidden');
-    aiContainer.classList.add('hidden');
     renderAlerts();
 };
 
-tabAi.onclick = () => {
-    tabAi.classList.add('text-adi-gold', 'border-adi-gold');
-    tabAi.classList.remove('text-gray-500', 'border-transparent');
-    tabHistory.classList.add('text-gray-500', 'border-transparent');
-    tabHistory.classList.remove('text-adi-magenta', 'border-adi-magenta');
-    tabTasks.classList.add('text-gray-500', 'border-transparent');
-    tabTasks.classList.remove('text-adi-cyan', 'border-adi-cyan');
-    tabAnalytics.classList.add('text-gray-500', 'border-transparent');
-    tabAnalytics.classList.remove('text-adi-teal', 'border-adi-teal');
-    tabAlerts.classList.add('text-gray-500', 'border-transparent');
-    tabAlerts.classList.remove('text-adi-red', 'border-adi-red');
+const aiModalOverlay = document.getElementById('ai-modal-overlay')!;
+const aiCloseBtn = document.getElementById('ai-close-btn')!;
 
-    aiControls.classList.remove('hidden');
-    historyControls.classList.add('hidden');
-    taskControls.classList.add('hidden');
-    analyticsControls.classList.add('hidden');
-    alertControls.classList.add('hidden');
-    
-    aiContainer.classList.remove('hidden');
-    repairHistoryContainer.classList.add('hidden');
-    taskListContainer.classList.add('hidden');
-    analyticsContainer.classList.add('hidden');
-    alertsContainer.classList.add('hidden');
+tabAi.onclick = () => {
+    aiModalOverlay.classList.remove('hidden');
+    aiModalOverlay.classList.add('flex');
+};
+
+aiCloseBtn.onclick = () => {
+    aiModalOverlay.classList.add('hidden');
+    aiModalOverlay.classList.remove('flex');
 };
 
 document.querySelectorAll('.analytics-metric-btn').forEach(btn => {
@@ -2167,10 +3178,155 @@ clearAlertsBtn.onclick = () => {
     // But we can clear the UI list temporarily or just log it
 };
 
+const bulkPrioritySelect = document.getElementById('bulk-priority') as HTMLSelectElement;
+const bulkDeleteBtn = document.getElementById('bulk-delete') as HTMLButtonElement;
+const bulkCompleteBtn = document.getElementById('bulk-complete') as HTMLButtonElement;
+const bulkPendingBtn = document.getElementById('bulk-pending') as HTMLButtonElement;
+
+if (bulkPrioritySelect) {
+    bulkPrioritySelect.onchange = (e) => {
+        const newPriority = (e.target as HTMLSelectElement).value as TaskPriority;
+        if (!newPriority) return;
+        
+        pushTaskUndo();
+        selectedTaskIds.forEach(id => {
+            const task = tasks.find(t => t.id === id);
+            if (task) task.priority = newPriority;
+        });
+        
+        addLog(`BULK PRIORITY UPDATE: ${selectedTaskIds.size} ITEMS -> ${newPriority}`, "cyan");
+        selectedTaskIds.clear();
+        saveTasks();
+        bulkPrioritySelect.value = "";
+    };
+}
+
+if (bulkCompleteBtn) {
+    bulkCompleteBtn.onclick = () => {
+        pushTaskUndo();
+        selectedTaskIds.forEach(id => {
+            const task = tasks.find(t => t.id === id);
+            if (task) task.status = 'COMPLETED';
+        });
+        addLog(`BULK STATUS UPDATE: ${selectedTaskIds.size} ITEMS -> COMPLETED`, "green");
+        selectedTaskIds.clear();
+        saveTasks();
+    };
+}
+
+if (bulkPendingBtn) {
+    bulkPendingBtn.onclick = () => {
+        pushTaskUndo();
+        selectedTaskIds.forEach(id => {
+            const task = tasks.find(t => t.id === id);
+            if (task) task.status = 'PENDING';
+        });
+        addLog(`BULK STATUS UPDATE: ${selectedTaskIds.size} ITEMS -> PENDING`, "gray");
+        selectedTaskIds.clear();
+        saveTasks();
+    };
+}
+
+if (bulkDeleteBtn) {
+    bulkDeleteBtn.onclick = () => {
+        pushTaskUndo();
+        tasks = tasks.filter(t => !selectedTaskIds.has(t.id));
+        addLog(`BULK DELETE: ${selectedTaskIds.size} ITEMS REMOVED`, "red");
+        selectedTaskIds.clear();
+        saveTasks();
+    };
+}
+
+const taskSelectAll = document.getElementById('task-select-all') as HTMLInputElement;
+
+if (taskSelectAll) {
+    taskSelectAll.onchange = (e) => {
+        const isChecked = (e.target as HTMLInputElement).checked;
+        
+        // Only select tasks currently visible (filtered)
+        let visibleTasks = [...tasks];
+        if (taskPriorityFilter !== 'ALL') {
+            visibleTasks = visibleTasks.filter(t => t.priority === taskPriorityFilter);
+        }
+        if (taskStatusFilter !== 'ALL') {
+            visibleTasks = visibleTasks.filter(t => t.status === taskStatusFilter);
+        }
+        if (taskDueDateFilter !== 'ALL') {
+            const now = Date.now();
+            const today = new Date(now).setHours(0, 0, 0, 0);
+            const endOfWeek = new Date(now).setDate(new Date(now).getDate() + 7);
+            
+            visibleTasks = visibleTasks.filter(t => {
+                if (taskDueDateFilter === 'NONE') return !t.dueDate;
+                if (!t.dueDate) return false;
+                
+                if (taskDueDateFilter === 'TODAY') return t.dueDate >= today && t.dueDate < today + 86400000;
+                if (taskDueDateFilter === 'WEEK') return t.dueDate >= today && t.dueDate <= endOfWeek;
+                if (taskDueDateFilter === 'OVERDUE') return t.dueDate < today && t.status !== 'COMPLETED';
+                return true;
+            });
+        }
+
+        if (isChecked) {
+            visibleTasks.forEach(t => selectedTaskIds.add(t.id));
+        } else {
+            visibleTasks.forEach(t => selectedTaskIds.delete(t.id));
+        }
+        renderTasks();
+    };
+}
+
+const sortByTimeHeader = document.getElementById('sort-by-time-header');
+const sortByPriorityHeader = document.getElementById('sort-by-priority-header');
+const taskStatusPills = document.getElementById('task-status-pills');
+
+if (taskStatusPills) {
+    const buttons = taskStatusPills.querySelectorAll('button');
+    buttons.forEach(btn => {
+        btn.onclick = () => {
+            const status = btn.getAttribute('data-status') as any;
+            taskStatusFilter = status;
+            taskStatusFilterSelect.value = status;
+            
+            // Update UI
+            buttons.forEach(b => {
+                b.className = "px-2 py-0.5 rounded-full text-[7px] font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-colors";
+            });
+            btn.className = "px-2 py-0.5 rounded-full text-[7px] font-bold uppercase tracking-widest bg-adi-cyan text-black transition-colors";
+            
+            renderTasks();
+        };
+    });
+}
+
+if (sortByTimeHeader) {
+    sortByTimeHeader.onclick = () => {
+        taskSortMode = 'TIME';
+        taskSortSelect.value = 'TIME';
+        renderTasks();
+    };
+}
+
+if (sortByPriorityHeader) {
+    sortByPriorityHeader.onclick = () => {
+        // Toggle between HI and LO
+        if (taskSortMode === 'PRIORITY_HIGH') {
+            taskSortMode = 'PRIORITY_LOW';
+            taskSortSelect.value = 'PRIORITY_LOW';
+        } else {
+            taskSortMode = 'PRIORITY_HIGH';
+            taskSortSelect.value = 'PRIORITY_HIGH';
+        }
+        renderTasks();
+    };
+}
+
 addTaskBtn.onclick = () => {
     editingTaskId = null;
     newTaskDesc.value = '';
+    newTaskNotes.value = '';
     newTaskPriority.value = TaskPriority.LOW;
+    newTaskDue.value = '';
     saveTaskBtn.innerText = "SAVE";
     newTaskForm.classList.toggle('hidden');
     if (!newTaskForm.classList.contains('hidden')) newTaskDesc.focus();
@@ -2178,16 +3334,20 @@ addTaskBtn.onclick = () => {
 
 saveTaskBtn.onclick = () => {
     const desc = newTaskDesc.value.trim();
+    const notes = newTaskNotes.value.trim();
     if (!desc) return;
     
     pushTaskUndo();
     const priority = newTaskPriority.value as TaskPriority;
+    const dueDate = newTaskDue.value ? new Date(newTaskDue.value).getTime() : undefined;
 
     if (editingTaskId) {
         const task = tasks.find(t => t.id === editingTaskId);
         if (task) {
             task.desc = desc;
+            task.notes = notes;
             task.priority = priority;
+            task.dueDate = dueDate;
             addLog(`PROTOCOL UPDATED: ${desc}`, "cyan");
         }
         editingTaskId = null;
@@ -2195,20 +3355,52 @@ saveTaskBtn.onclick = () => {
         tasks.unshift({
             id: `t${Date.now()}`,
             desc,
+            notes,
             priority,
             status: 'PENDING',
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            dueDate
         });
         addLog(`NEW PROTOCOL ADDED: ${desc}`, "cyan");
     }
 
     newTaskDesc.value = '';
+    newTaskNotes.value = '';
+    newTaskDue.value = '';
     newTaskForm.classList.add('hidden');
     saveTasks();
 };
 
 taskSortSelect.onchange = (e) => {
     taskSortMode = (e.target as HTMLSelectElement).value as any;
+    renderTasks();
+};
+
+taskPriorityFilterSelect.onchange = (e) => {
+    taskPriorityFilter = (e.target as HTMLSelectElement).value as any;
+    renderTasks();
+};
+
+taskStatusFilterSelect.onchange = (e) => {
+    taskStatusFilter = (e.target as HTMLSelectElement).value as any;
+    
+    // Sync with pills
+    if (taskStatusPills) {
+        const buttons = taskStatusPills.querySelectorAll('button');
+        buttons.forEach(b => {
+            if (b.getAttribute('data-status') === taskStatusFilter) {
+                b.className = "px-2 py-0.5 rounded-full text-[7px] font-bold uppercase tracking-widest bg-adi-cyan text-black transition-colors";
+            } else {
+                b.className = "px-2 py-0.5 rounded-full text-[7px] font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-colors";
+            }
+        });
+    }
+    
+    renderTasks();
+};
+
+taskDueDateFilterSelect.onchange = (e) => {
+    taskDueDateFilter = (e.target as HTMLSelectElement).value as any;
     renderTasks();
 };
 
@@ -2245,15 +3437,30 @@ const updateTick = async () => {
     batteryData = batteryData.map(bank => {
         let vChange = (Math.random() - 0.5) * 0.005;
         let tChange = (Math.random() - 0.45) * 0.2;
+        let irChange = (Math.random() - 0.4) * 0.02; // Natural IR growth
+        let fxMultiplier = 1.0;
+        let v2gCycleIncrement = 0;
         
         if (bank.v2gStatus === 'ENGAGED') {
-            vChange -= 0.002; // Discharging to grid
-            tChange += 0.15;  // Heating up due to transfer
+            vChange -= 0.004; // Accelerated discharge
+            tChange += 0.25;  // Higher thermal stress
+            irChange += 0.06; // Accelerated chemical degradation
+            fxMultiplier = 1.8; // Faster Factor X growth
+            v2gCycleIncrement = 1;
         }
         
         const newVoltage = (parseFloat(bank.voltage) + vChange).toFixed(2);
         const newTemp = (parseFloat(bank.temp) + tChange).toFixed(1);
-        const newFx = Math.max(0, Math.min(1.0, bank.fx + (Math.random() - 0.4) * 0.001));
+        const newIR = (parseFloat(bank.ir) + irChange).toFixed(1);
+        let newFx = Math.max(0, Math.min(1.0, bank.fx + (Math.random() - 0.48) * 0.0008 * fxMultiplier));
+        if (v2gCycleIncrement > 0) {
+            newFx -= 0.0002 * v2gCycleIncrement;
+        }
+        if (bank.v2gStatus === V2GStatus.ENGAGED) {
+            newFx -= 0.00005;
+        }
+        newFx = Math.max(0, Math.min(1.0, newFx));
+        const newV2GCycles = (bank.v2gCycles || 0) + v2gCycleIncrement;
 
         // Simulate Cells
         let updatedCells = bank.cells;
@@ -2280,7 +3487,7 @@ const updateTick = async () => {
         }
 
         // Prediction Logic
-        const tempBank = { ...bank, voltage: newVoltage, temp: newTemp, fx: newFx };
+        const tempBank = { ...bank, voltage: newVoltage, temp: newTemp, ir: newIR, fx: newFx };
         const bhs = calculateBHS(tempBank, avgVoltage);
         
         let prediction: 'STABLE' | 'DEGRADING' | 'REGEN_REQ' | 'AT_RISK' = 'STABLE';
@@ -2291,12 +3498,28 @@ const updateTick = async () => {
         const currentDegradationRate = Math.max(0, prevBhs - bhs);
         const smoothedDegradationRate = bank.degradationRate ? (bank.degradationRate * 0.8 + currentDegradationRate * 0.2) : currentDegradationRate;
 
+        // Update BHS History
+        const newBhsHistory = [...(bank.bhsHistory || [])];
+        if (newBhsHistory.length >= 24) newBhsHistory.shift();
+        newBhsHistory.push({ time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), score: bhs });
+
         // Calculate remaining lifespan in days based on degradation rate
         // Assuming 1 tick = 0.1 days for simulation purposes
         const ticksToFailure = smoothedDegradationRate > 0 ? (bhs - 40) / smoothedDegradationRate : 1000;
-        const remainingDays = Math.max(0, Math.floor(ticksToFailure * 0.1));
+        let baseRemainingDays = ticksToFailure * 0.1;
+        if (v2gCycleIncrement > 0) {
+            baseRemainingDays -= 0.5 * v2gCycleIncrement;
+        }
+        if (bank.v2gStatus === V2GStatus.ENGAGED) {
+            baseRemainingDays -= 0.05;
+        }
+        baseRemainingDays = Math.max(0, baseRemainingDays);
         
-        if (bhs < 45 || parseFloat(bank.ir) > 20 || newFx > 0.12) {
+        // V2G Risk Adjustment: High cycle count reduces confidence in lifespan
+        const v2gRiskFactor = Math.max(0.6, 1 - (newV2GCycles * 0.0015));
+        const remainingDays = Math.floor(baseRemainingDays * v2gRiskFactor);
+        
+        if (bhs < 45 || parseFloat(newIR) > 20 || newFx > 0.12) {
             prediction = 'REGEN_REQ';
             predictedFailureDate = 'IMMINENT';
             if (bank.healthPrediction !== 'REGEN_REQ') {
@@ -2335,11 +3558,14 @@ const updateTick = async () => {
             ...bank, 
             voltage: newVoltage,
             temp: newTemp,
+            ir: newIR,
             fx: newFx,
+            v2gCycles: newV2GCycles,
             healthPrediction: prediction,
             predictedFailureDate,
             degradationRate: smoothedDegradationRate,
-            cells: updatedCells
+            cells: updatedCells,
+            bhsHistory: newBhsHistory
         };
     });
     renderMatrix();
@@ -2352,6 +3578,13 @@ const updateTick = async () => {
              inspectorBankStatus.innerText = bank.healthPrediction || 'STABLE';
              inspectorBankStatus.className = `text-xl font-black uppercase tracking-tighter ${bank.healthPrediction === 'REGEN_REQ' ? 'text-adi-red animate-pulse' : (bank.healthPrediction === 'AT_RISK' ? 'text-adi-gold' : 'text-adi-green')}`;
              
+             const v2gStatus = bank.v2gStatus || 'OFFLINE';
+             inspectorV2GStatus.innerText = v2gStatus;
+             const v2gClass = v2gStatus === 'ENGAGED' ? 'bg-adi-magenta text-black animate-pulse shadow-[0_0_15px_rgba(255,0,255,0.4)]' : (v2gStatus === 'READY' ? 'bg-adi-green text-black shadow-[0_0_10px_rgba(0,255,65,0.2)]' : 'bg-gray-800 text-gray-500 border border-white/10');
+             inspectorV2GStatus.className = `text-xs font-black uppercase tracking-widest px-3 py-1 rounded-sm w-fit ${v2gClass}`;
+             
+             inspectorV2GCycles.innerText = (bank.v2gCycles || 0).toString();
+
              if (bank.predictedFailureDate) {
                  inspectorFailureContainer.classList.remove('hidden');
                  inspectorFailureDate.innerText = bank.predictedFailureDate === 'IMMINENT' ? 'IMMINENT FAILURE' : bank.predictedFailureDate;
@@ -2367,20 +3600,24 @@ const updateTick = async () => {
              }
 
              renderCellGrid(bank);
+             renderBHSTrendChart(bank);
         }
     }
 
     const timestamp = new Date().toLocaleTimeString();
     const vPoint: ChartDataPoint = { time: timestamp };
     const fxPoint: ChartDataPoint = { time: timestamp };
-    batteryData.forEach(b => { vPoint[`bank_${b.id}`] = parseFloat(b.voltage); fxPoint[`bank_fx_${b.id}`] = b.fx; });
+    const tempPoint: ChartDataPoint = { time: timestamp };
+    batteryData.forEach(b => { 
+        vPoint[`bank_${b.id}`] = parseFloat(b.voltage); 
+        fxPoint[`bank_fx_${b.id}`] = b.fx; 
+        tempPoint[`bank_temp_${b.id}`] = parseFloat(b.temp);
+    });
     chartHistory.push(vPoint); if (chartHistory.length > MAX_HISTORY) chartHistory.shift();
     fxHistory.push(fxPoint); if (fxHistory.length > MAX_HISTORY) fxHistory.shift();
+    tempHistory.push(tempPoint); if (tempHistory.length > MAX_HISTORY) tempHistory.shift();
     
-    const cRoot = getRoot('voltage-chart-root');
-    const fRoot = getRoot('fx-chart-root');
-    if (cRoot) cRoot.render(<VoltageChart data={[...chartHistory]} selectedIndex={selectedIndex} />);
-    if (fRoot) fRoot.render(<FactorXChart data={[...fxHistory]} />);
+    renderMainCharts();
 
     // Update grid status live for selected bank
     const selectedBank = batteryData[selectedIndex];
@@ -2390,6 +3627,12 @@ const updateTick = async () => {
     }
 
     renderAlerts();
+
+    // Update Mineral Recovery Simulation
+    mineralData.lithium = Math.min(mineralData.lithiumTarget, mineralData.lithium + Math.random() * 0.05);
+    mineralData.cobalt = Math.min(mineralData.cobaltTarget, mineralData.cobalt + Math.random() * 0.02);
+    mineralData.nickel = Math.min(mineralData.nickelTarget, mineralData.nickel + Math.random() * 0.03);
+    renderMineralRecovery();
 };
 
 setInterval(updateTick, 3000); // Update UI every 3 seconds
@@ -2417,6 +3660,7 @@ function forceRestoreConsole() {
             renderMatrix(); 
             renderRepairHistory();
             renderFleetSummary();
+            renderMineralRecovery();
         }
     } catch (error) {
         console.error("CRITICAL BOOT ERROR:", error);
@@ -2424,17 +3668,171 @@ function forceRestoreConsole() {
     }
 })();
 
-// --- AI ASSISTANT LOGIC ---
-import { GoogleGenAI } from "@google/genai";
+// --- AI ASSISTANT PROXY (FIXES CORS) ---
+class GoogleGenAIProxy {
+    models = {
+        generateContent: async (params: any) => {
+            const res = await fetch('/api/ai/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+            if (!res.ok) throw new Error(await res.text());
+            return await res.json();
+        },
+        generateVideos: async (params: any) => {
+            const res = await fetch('/api/ai/generateVideos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+            if (!res.ok) throw new Error(await res.text());
+            return await res.json();
+        }
+    };
+    operations = {
+        getVideosOperation: async (params: any) => {
+            const res = await fetch('/api/ai/videoOperation', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+            if (!res.ok) throw new Error(await res.text());
+            return await res.json();
+        }
+    };
+}
 
 const aiInput = document.getElementById('ai-input') as HTMLInputElement;
 const aiSendBtn = document.getElementById('ai-send-btn') as HTMLButtonElement;
 const aiGenImgBtn = document.getElementById('ai-gen-img-btn') as HTMLButtonElement;
 const aiGenVidBtn = document.getElementById('ai-gen-vid-btn') as HTMLButtonElement;
 const aiChatLog = document.getElementById('ai-chat-log')!;
+const aiSuggestions = document.getElementById('ai-suggestions')!;
 
-const apiKey = "AIzaSyBTScEKANDM3S4l7QdhrKUxnDSm4zB-o70";
-const ai = new GoogleGenAI({ apiKey });
+const AI_COMMANDS = [
+    // Diagnostics
+    "DIAGNOSE BANK [ID]",
+    "ANALYZE LATTICE ENTROPY",
+    "SYSTEM INTEGRITY DIAGNOSTIC",
+    "THERMAL STABILITY ANALYSIS",
+    "FACTOR X TREND ANALYSIS",
+    "ANALYZE CELL VOLTAGE VARIANCE",
+    "SCAN FOR MICRO-FRACTURES",
+    "IMPEDANCE SPECTROSCOPY REPORT",
+    
+    // Fleet Management
+    "FLEET STATUS REPORT",
+    "PREDICT NEXT FAILURE",
+    "ESTIMATE ENERGY SAVINGS",
+    "V2G ENGAGEMENT STATUS",
+    "GENERATE FLEET HEALTH AUDIT",
+    "SIMULATE 30-DAY DEGRADATION",
+    "CALCULATE GRID ARBITRAGE ROI",
+    "MINERAL RECOVERY EFFICIENCY",
+    "FLEET UTILIZATION HEATMAP",
+    
+    // Repair Protocols
+    "REPAIR BANK [ID]",
+    "REPAIR ALL CRITICAL NODES",
+    "REGENERATE CRITICAL CELLS",
+    "OPTIMIZE CHARGE CYCLES",
+    "REGENERATE LITHIUM LATTICE",
+    "V2G PEAK SHAVING PROTOCOL",
+    "PREDICTIVE MAINTENANCE SCHEDULE",
+    "RESET BMS CONTROLLER",
+    "INITIATE DEEP PULSE RECOVERY",
+    "CALIBRATE VOLTAGE SENSORS"
+];
+
+let selectedSuggestionIndex = -1;
+
+function showSuggestions(filter: string = "") {
+    const upperFilter = filter.toUpperCase();
+    const filtered = AI_COMMANDS.filter(cmd => 
+        cmd.toUpperCase().includes(upperFilter) || 
+        upperFilter.split(' ').every(word => cmd.toUpperCase().includes(word))
+    ).slice(0, 8); // Limit to 8 suggestions
+
+    if (filtered.length === 0) {
+        aiSuggestions.style.display = 'none';
+        selectedSuggestionIndex = -1;
+        return;
+    }
+
+    aiSuggestions.innerHTML = `
+        <div class="px-2 py-1 border-b border-white/10 bg-black/60 text-[9px] text-gray-500 font-black uppercase tracking-widest">
+            Suggested Protocols
+        </div>
+    `;
+    
+    filtered.forEach((cmd, idx) => {
+        const item = document.createElement('div');
+        item.className = `suggestion-item ${idx === selectedSuggestionIndex ? 'bg-adi-gold/20 text-white' : ''}`;
+        
+        // Highlight matching parts
+        if (filter) {
+            const regex = new RegExp(`(${filter})`, 'gi');
+            item.innerHTML = cmd.replace(regex, '<span class="text-white font-black">$1</span>');
+        } else {
+            item.innerText = cmd;
+        }
+
+        item.onclick = () => {
+            aiInput.value = cmd;
+            aiSuggestions.style.display = 'none';
+            aiInput.focus();
+            selectedSuggestionIndex = -1;
+        };
+        aiSuggestions.appendChild(item);
+    });
+    aiSuggestions.style.display = 'block';
+}
+
+if (aiInput) {
+    aiInput.oninput = () => {
+        selectedSuggestionIndex = -1;
+        showSuggestions(aiInput.value);
+    };
+    aiInput.onfocus = () => {
+        selectedSuggestionIndex = -1;
+        showSuggestions(aiInput.value);
+    };
+    
+    aiInput.addEventListener('keydown', (e) => {
+        const items = aiSuggestions.querySelectorAll('.suggestion-item');
+        if (aiSuggestions.style.display === 'block' && items.length > 0) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedSuggestionIndex = (selectedSuggestionIndex + 1) % items.length;
+                showSuggestions(aiInput.value);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedSuggestionIndex = (selectedSuggestionIndex - 1 + items.length) % items.length;
+                showSuggestions(aiInput.value);
+            } else if (e.key === 'Enter' && selectedSuggestionIndex !== -1) {
+                e.preventDefault();
+                const selectedText = (items[selectedSuggestionIndex] as HTMLElement).innerText;
+                aiInput.value = selectedText;
+                aiSuggestions.style.display = 'none';
+                selectedSuggestionIndex = -1;
+            } else if (e.key === 'Escape') {
+                aiSuggestions.style.display = 'none';
+                selectedSuggestionIndex = -1;
+            }
+        }
+    });
+
+    // Close suggestions when clicking outside
+    document.addEventListener('click', (e) => {
+        if (e.target !== aiInput && !aiSuggestions.contains(e.target as Node)) {
+            aiSuggestions.style.display = 'none';
+            selectedSuggestionIndex = -1;
+        }
+    });
+}
+
+const ai = new GoogleGenAIProxy();
 
 function addAiMessage(msg: string, role: 'user' | 'ai' | 'system' = 'ai') {
     const div = document.createElement('div');
@@ -2534,3 +3932,6 @@ if (aiInput) {
         if (e.key === 'Enter') aiSendBtn.click();
     });
 }
+
+// Auto-open cell inspector removed to show main system panel on load
+
