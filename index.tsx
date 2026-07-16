@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
+import { Analytics } from '@vercel/analytics/react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, AreaChart, Area, BarChart, Bar, Legend } from "recharts";
 
 // --- GLOBAL ERROR HANDLER ---
@@ -480,6 +481,11 @@ try {
         { id: 't1', desc: 'INSPECT B04 THERMAL', priority: TaskPriority.HIGH, status: 'PENDING', timestamp: Date.now() },
         { id: 't2', desc: 'CALIBRATE SENSORS', priority: TaskPriority.LOW, status: 'PENDING', timestamp: Date.now() - 10000 }
     ];
+// --- VERCEL ANALYTICS COMPONENT ---
+const AnalyticsWrapper = () => {
+    return <Analytics />;
+};
+
 } catch (e) { console.error(e); }
 
 function saveTasks() {
@@ -2534,3 +2540,13 @@ if (aiInput) {
         if (e.key === 'Enter') aiSendBtn.click();
     });
 }
+
+// --- MOUNT VERCEL ANALYTICS ---
+(function initializeAnalytics() {
+    const analyticsRoot = document.getElementById('vercel-analytics-root');
+    if (analyticsRoot) {
+        const root = createRoot(analyticsRoot);
+        root.render(<AnalyticsWrapper />);
+        console.log('Vercel Analytics initialized successfully');
+    }
+})();
