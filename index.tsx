@@ -3941,6 +3941,16 @@ if (aiInput) {
 
 // --- LEAD FORM TRACKING ---
 const leadForm = document.getElementById('lead-form') as HTMLFormElement | null;
+const leadThankYou = document.getElementById('lead-thank-you');
+const pricingCta = document.getElementById('pricing-cta');
+
+if (pricingCta) {
+    pricingCta.addEventListener('click', () => {
+        track('Pricing CTA Click', {
+            source: 'pricing_section'
+        });
+    });
+}
 
 if (leadForm) {
     leadForm.addEventListener('submit', (event) => {
@@ -3967,6 +3977,11 @@ if (leadForm) {
             'Wiadomość:',
             message || '-'
         ].join('\n');
+
+        if (leadThankYou) {
+            leadThankYou.classList.remove('hidden');
+            leadThankYou.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
 
         window.location.href = `mailto:ewelinalesiak7@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     });
