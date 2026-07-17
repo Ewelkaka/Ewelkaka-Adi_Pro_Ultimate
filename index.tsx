@@ -3847,16 +3847,25 @@ if (aiSendBtn) {
     aiSendBtn.onclick = async () => {
         const text = aiInput.value.trim();
         if (!text) return;
-        
+
         aiInput.value = '';
         addAiMessage(`> ${text}`, 'user');
-        
+        addAiMessage('GENERATING FLEET REPORT VIA AI GATEWAY...', 'system');
+
         try {
-            const response = await ai.models.generateContent({
-                model: "gemini-3.1-pro-preview",
-                contents: text,
+            const response = await fetch('/api/ai-report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fleetSize: '450 hulajnóg 36–48V Li-ion',
+                    city: 'Warszawa / Kraków',
+                    challenge: text
+                })
             });
-            addAiMessage(response.text || "NO RESPONSE");
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'AI Gateway report failed.');
+            addAiMessage((data.report || 'NO RESPONSE').replace(/\n/g, '<br/>'));
         } catch (e: any) {
             addAiMessage(`ERROR: ${e.message}`, 'system');
         }
@@ -3864,67 +3873,14 @@ if (aiSendBtn) {
 }
 
 if (aiGenImgBtn) {
-    aiGenImgBtn.onclick = async () => {
-        const text = aiInput.value.trim() || "A futuristic micromobility fleet orchestration center, cyberpunk style, neon lights";
-        aiInput.value = '';
-        addAiMessage(`> GENERATE IMAGE: ${text}`, 'user');
-        
-        try {
-            const response = await ai.models.generateContent({
-                model: 'gemini-3.1-flash-image-preview',
-                contents: { parts: [{ text }] },
-                config: {
-                    imageConfig: { aspectRatio: "16:9", imageSize: "1K" }
-                }
-            });
-            
-            let found = false;
-            for (const part of response.candidates?.[0]?.content?.parts || []) {
-                if (part.inlineData) {
-                    const imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-                    addAiMessage(`<img src="${imageUrl}" class="w-full rounded-sm border border-adi-cyan/30 mt-2" />`);
-                    found = true;
-                }
-            }
-            if (!found) addAiMessage("IMAGE GENERATION FAILED: NO IMAGE DATA", 'system');
-        } catch (e: any) {
-            addAiMessage(`ERROR: ${e.message}`, 'system');
-        }
+    aiGenImgBtn.onclick = () => {
+        addAiMessage('IMAGE GENERATION IS DISABLED IN THIS DEPLOYMENT. USE THE AI REPORT GENERATOR INSTEAD.', 'system');
     };
 }
 
 if (aiGenVidBtn) {
-    aiGenVidBtn.onclick = async () => {
-        const text = aiInput.value.trim() || "A futuristic e-bike driving through a neon city at night";
-        aiInput.value = '';
-        addAiMessage(`> GENERATE VIDEO: ${text}`, 'user');
-        addAiMessage(`INITIATING VEO VIDEO GENERATION... THIS MAY TAKE A FEW MINUTES.`, 'system');
-        
-        try {
-            let operation = await ai.models.generateVideos({
-                model: 'veo-3.1-fast-generate-preview',
-                prompt: text,
-                config: {
-                    numberOfVideos: 1,
-                    resolution: '720p',
-                    aspectRatio: '16:9'
-                }
-            });
-            
-            while (!operation.done) {
-                await new Promise(resolve => setTimeout(resolve, 10000));
-                operation = await ai.operations.getVideosOperation({operation: operation});
-            }
-            
-            const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-            if (downloadLink) {
-                addAiMessage(`<video src="${downloadLink}" controls class="w-full rounded-sm border border-adi-magenta/30 mt-2"></video>`);
-            } else {
-                addAiMessage("VIDEO GENERATION FAILED: NO VIDEO URI", 'system');
-            }
-        } catch (e: any) {
-            addAiMessage(`ERROR: ${e.message}`, 'system');
-        }
+    aiGenVidBtn.onclick = () => {
+        addAiMessage('VIDEO GENERATION IS DISABLED IN THIS DEPLOYMENT. USE THE AI REPORT GENERATOR INSTEAD.', 'system');
     };
 }
 
