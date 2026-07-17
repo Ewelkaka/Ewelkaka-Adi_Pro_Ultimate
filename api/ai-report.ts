@@ -18,37 +18,44 @@ export default async function handler(req: any, res: any) {
     const city = body.city || 'Warszawa / Kraków';
     const challenge = body.challenge || 'wysokie koszty serwisu, spadek SoH i nieplanowane awarie baterii';
 
-    const response = await fetch('https://ai-gateway.vercel.sh/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'openai/gpt-5.5',
-        messages: [
-          {
-            role: 'system',
-            content:
-              'Jesteś asystentem sprzedażowym ADI PRO Ultimate 2026. Pisz krótko, konkretnie, po polsku. Nie udawaj prawdziwych wyników klienta; oznacz dane jako scenariusz modelowy.',
-          },
-          {
-            role: 'user',
-            content: `Wygeneruj krótki raport pilotażu dla floty mikro mobilności. Flota: ${fleetSize}. Region: ${city}. Wyzwanie: ${challenge}. Zwróć 4 sekcje: diagnoza, ryzyka, rekomendacje, następny krok.`,
-          },
-        ],
-        stream: false,
-      }),
-    });
+    const models = ['openai/gpt-5.4', 'anthropic/claude-sonnet-4.6', 'xai/grok-4.3'];
+    let lastError = 'AI Gateway request failed.';
 
-    const result = await response.json();
+    for (const model of models) {
+      const response = await fetch('https://ai-gateway.vercel.sh/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'Jesteś asystentem sprzedażowym ADI PRO Ultimate 2026. Pisz krótko, konkretnie, po polsku. Nie udawaj prawdziwych wyników klienta; oznacz dane jako scenariusz modelowy.',
+            },
+            {
+              role: 'user',
+              content: `Wygeneruj krótki raport pilotażu dla floty mikro mobilności. Flota: ${fleetSize}. Region: ${city}. Wyzwanie: ${challenge}. Zwróć 4 sekcje: diagnoza, ryzyka, rekomendacje, następny krok.`,
+            },
+          ],
+          stream: false,
+        }),
+      });
 
-    if (!response.ok) {
-      return res.status(response.status).json({ error: result?.error?.message || 'AI Gateway request failed.' });
+      const result = await response.json();
+
+      if (response.ok) {
+        const report = result?.choices?.[0]?.message?.content || 'Brak treści raportu.';
+        return res.status(200).json({ report, model });
+      }
+
+      lastError = result?.error?.message || `AI Gateway request failed for ${model}.`;
     }
 
-    const report = result?.choices?.[0]?.message?.content || 'Brak treści raportu.';
-    return res.status(200).json({ report });
+    return res.status(502).json({ error: lastError });
   } catch (error: any) {
     return res.status(500).json({ error: error.message || 'Unexpected AI report error.' });
   }
