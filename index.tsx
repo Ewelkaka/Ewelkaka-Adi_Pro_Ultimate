@@ -3903,6 +3903,8 @@ const stickyDemoCheckoutCta = document.getElementById('sticky-demo-checkout-cta'
 const stickyLeadCta = document.getElementById('sticky-lead-cta');
 const generateAiReportBtn = document.getElementById('generate-ai-report-btn') as HTMLButtonElement | null;
 const aiReportOutput = document.getElementById('ai-report-output');
+const copyAiReportBtn = document.getElementById('copy-ai-report-btn') as HTMLButtonElement | null;
+const copyAiReportStatus = document.getElementById('copy-ai-report-status');
 
 if (pricingCta) {
     pricingCta.addEventListener('click', () => {
@@ -3964,6 +3966,25 @@ if (generateAiReportBtn && aiReportOutput) {
             aiReportOutput.textContent = `Błąd generatora AI: ${error.message}`;
         } finally {
             generateAiReportBtn.disabled = false;
+        }
+    });
+}
+
+if (copyAiReportBtn && aiReportOutput) {
+    copyAiReportBtn.addEventListener('click', async () => {
+        const reportText = aiReportOutput.textContent?.trim() || '';
+        if (!reportText || reportText === 'Raport AI pojawi się tutaj po kliknięciu przycisku.') return;
+
+        try {
+            await navigator.clipboard.writeText(reportText);
+            copyAiReportStatus?.classList.remove('hidden');
+            track('AI Report Copy Click', { source: 'ai_gateway_demo' });
+            setTimeout(() => copyAiReportStatus?.classList.add('hidden'), 2500);
+        } catch (error) {
+            if (copyAiReportStatus) {
+                copyAiReportStatus.textContent = 'Nie udało się skopiować raportu.';
+                copyAiReportStatus.classList.remove('hidden');
+            }
         }
     });
 }
