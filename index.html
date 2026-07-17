@@ -605,6 +605,29 @@
             </div>
         </section>
 
+        <section id="lead-form-section" class="border border-adi-cyan/25 bg-black/35 rounded-sm p-4 grid grid-cols-1 xl:grid-cols-[1fr_2fr] gap-4 items-start">
+            <div>
+                <p class="text-[8px] text-adi-cyan uppercase tracking-[0.4em] mb-2">Kontakt B2B</p>
+                <h3 class="text-xl font-black text-white uppercase tracking-tight">Zapytaj o wdrożenie</h3>
+                <p class="text-[10px] text-gray-400 uppercase tracking-widest mt-2">
+                    Zostaw dane, a system przygotuje wiadomość do kontaktu w sprawie pilotażu, wdrożenia lub licencji enterprise.
+                </p>
+            </div>
+            <form id="lead-form" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input id="lead-name" name="name" type="text" placeholder="Imię" class="bg-black/60 border border-white/10 px-3 py-2 text-[10px] text-white uppercase outline-none focus:border-adi-cyan" required>
+                <input id="lead-email" name="email" type="email" placeholder="Email" class="bg-black/60 border border-white/10 px-3 py-2 text-[10px] text-white outline-none focus:border-adi-cyan" required>
+                <input id="lead-company" name="company" type="text" placeholder="Firma / flota" class="bg-black/60 border border-white/10 px-3 py-2 text-[10px] text-white uppercase outline-none focus:border-adi-cyan">
+                <select id="lead-plan" name="plan" class="bg-black/60 border border-white/10 px-3 py-2 text-[10px] text-white uppercase outline-none focus:border-adi-gold">
+                    <option value="Demo 999 zł">Demo 999 zł</option>
+                    <option value="System od 2 999 zł / mies.">System od 2 999 zł / mies.</option>
+                    <option value="Wdrożenie od 15 000 zł">Wdrożenie od 15 000 zł</option>
+                    <option value="Enterprise indywidualnie">Enterprise indywidualnie</option>
+                </select>
+                <textarea id="lead-message" name="message" placeholder="Wiadomość" class="md:col-span-2 bg-black/60 border border-white/10 px-3 py-2 text-[10px] text-white uppercase outline-none focus:border-adi-magenta min-h-[72px]"></textarea>
+                <button type="submit" class="console-btn md:col-span-2 py-3 text-[10px] font-black uppercase text-adi-gold border-adi-gold/40 bg-adi-gold/5">Wyślij zapytanie</button>
+            </form>
+        </section>
+
         <div class="grid grid-cols-12 gap-6 flex-1 min-h-0">
             <!-- LEFT COLUMN: STATS & MATRIX -->
             <div class="col-span-3 flex flex-col gap-6 min-h-0">
