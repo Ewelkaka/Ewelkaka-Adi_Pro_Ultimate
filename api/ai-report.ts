@@ -3,7 +3,10 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const authToken = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
+  const authToken =
+    process.env.AI_GATEWAY_API_KEY ||
+    process.env.VERCEL_OIDC_TOKEN ||
+    req.headers['x-vercel-oidc-token'];
 
   if (!authToken) {
     return res.status(503).json({ error: 'AI Gateway is not configured for this deployment.' });
