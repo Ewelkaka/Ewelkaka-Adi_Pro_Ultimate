@@ -3945,6 +3945,8 @@ const pricingCta = document.getElementById('pricing-cta');
 const demoCheckoutCta = document.getElementById('demo-checkout-cta');
 const stickyDemoCheckoutCta = document.getElementById('sticky-demo-checkout-cta');
 const stickyLeadCta = document.getElementById('sticky-lead-cta');
+const generateAiReportBtn = document.getElementById('generate-ai-report-btn') as HTMLButtonElement | null;
+const aiReportOutput = document.getElementById('ai-report-output');
 
 if (pricingCta) {
     pricingCta.addEventListener('click', () => {
@@ -3979,6 +3981,34 @@ if (stickyLeadCta) {
         track('Pricing CTA Click', {
             source: 'sticky_cta'
         });
+    });
+}
+
+if (generateAiReportBtn && aiReportOutput) {
+    generateAiReportBtn.addEventListener('click', async () => {
+        generateAiReportBtn.disabled = true;
+        aiReportOutput.textContent = 'Generuję raport AI...';
+        track('AI Report Generate Click', { source: 'ai_gateway_demo' });
+
+        try {
+            const response = await fetch('/api/ai-report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fleetSize: '450 hulajnóg 36–48V Li-ion',
+                    city: 'Warszawa / Kraków',
+                    challenge: 'wysokie koszty serwisu, spadek SoH i nieplanowane awarie baterii'
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Nie udało się wygenerować raportu.');
+            aiReportOutput.textContent = data.report;
+        } catch (error: any) {
+            aiReportOutput.textContent = `Błąd generatora AI: ${error.message}`;
+        } finally {
+            generateAiReportBtn.disabled = false;
+        }
     });
 }
 
