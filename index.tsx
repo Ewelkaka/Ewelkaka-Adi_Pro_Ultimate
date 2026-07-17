@@ -3943,11 +3943,22 @@ if (aiInput) {
 const leadForm = document.getElementById('lead-form') as HTMLFormElement | null;
 const leadThankYou = document.getElementById('lead-thank-you');
 const pricingCta = document.getElementById('pricing-cta');
+const demoCheckoutCta = document.getElementById('demo-checkout-cta');
 
 if (pricingCta) {
     pricingCta.addEventListener('click', () => {
         track('Pricing CTA Click', {
             source: 'pricing_section'
+        });
+    });
+}
+
+if (demoCheckoutCta) {
+    demoCheckoutCta.addEventListener('click', () => {
+        track('Demo Checkout Click', {
+            source: 'demo_checkout_section',
+            price: '999_pln',
+            provider: 'revolut'
         });
     });
 }
