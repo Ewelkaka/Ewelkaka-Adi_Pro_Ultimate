@@ -3944,6 +3944,8 @@ const leadForm = document.getElementById('lead-form') as HTMLFormElement | null;
 const leadThankYou = document.getElementById('lead-thank-you');
 const pricingCta = document.getElementById('pricing-cta');
 const demoCheckoutCta = document.getElementById('demo-checkout-cta');
+const stickyDemoCheckoutCta = document.getElementById('sticky-demo-checkout-cta');
+const stickyLeadCta = document.getElementById('sticky-lead-cta');
 
 if (pricingCta) {
     pricingCta.addEventListener('click', () => {
@@ -3959,6 +3961,24 @@ if (demoCheckoutCta) {
             source: 'demo_checkout_section',
             price: '999_pln',
             provider: 'revolut'
+        });
+    });
+}
+
+if (stickyDemoCheckoutCta) {
+    stickyDemoCheckoutCta.addEventListener('click', () => {
+        track('Demo Checkout Click', {
+            source: 'sticky_cta',
+            price: '999_pln',
+            provider: 'revolut'
+        });
+    });
+}
+
+if (stickyLeadCta) {
+    stickyLeadCta.addEventListener('click', () => {
+        track('Pricing CTA Click', {
+            source: 'sticky_cta'
         });
     });
 }
