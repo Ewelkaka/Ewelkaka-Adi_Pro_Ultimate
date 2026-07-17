@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import { QRCodeCanvas } from "qrcode.react";
-import { SpeedInsights } from "@vercel/speed-insights/react";
 import { Analytics } from "@vercel/analytics/react";
+import { track } from "@vercel/analytics";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, AreaChart, Area, BarChart, Bar, Legend } from "recharts";
 
 // --- GLOBAL ERROR HANDLER ---
@@ -3938,12 +3938,45 @@ if (aiInput) {
 // Auto-open cell inspector removed to show main system panel on load
 
 
+
+// --- LEAD FORM TRACKING ---
+const leadForm = document.getElementById('lead-form') as HTMLFormElement | null;
+
+if (leadForm) {
+    leadForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const formData = new FormData(leadForm);
+        const name = String(formData.get('name') || '').trim();
+        const email = String(formData.get('email') || '').trim();
+        const company = String(formData.get('company') || '').trim();
+        const plan = String(formData.get('plan') || '').trim();
+        const message = String(formData.get('message') || '').trim();
+
+        track('Lead Form Submit', {
+            source: 'pricing_section',
+            plan: plan || 'not_selected'
+        });
+
+        const subject = `Zapytanie o wdrożenie ADI PRO Ultimate - ${plan || 'kontakt'}`;
+        const body = [
+            `Imię: ${name}`,
+            `Email: ${email}`,
+            `Firma / flota: ${company || '-'}`,
+            `Pakiet: ${plan || '-'}`,
+            '',
+            'Wiadomość:',
+            message || '-'
+        ].join('\n');
+
+        window.location.href = `mailto:ewelinalesiak7@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    });
+}
+
 // --- VERCEL ANALYTICS INITIALIZATION ---
 const AnalyticsWrapper: React.FC = () => {
     return (
         <>
             <Analytics />
-            <SpeedInsights />
         </>
     );
 };
