@@ -13,13 +13,14 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Gemini API Key from environment
-  const apiKey = process.env.GEMINI_API_KEY || "AIzaSyBTScEKANDM3S4l7QdhrKUxnDSm4zB-o70";
-  const ai = new GoogleGenAI({ apiKey });
+  // Gemini API Key from environment. Do not hardcode provider secrets in source.
+  const apiKey = process.env.GEMINI_API_KEY;
+  const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
   // AI Proxy Endpoints
   app.post("/api/ai/generate", async (req, res) => {
     try {
+      if (!ai) return res.status(503).json({ error: "GEMINI_API_KEY is not configured." });
       const { model, contents, config } = req.body;
       const response = await ai.models.generateContent({ model, contents, config });
       res.json(response);
@@ -31,6 +32,7 @@ async function startServer() {
 
   app.post("/api/ai/generateVideos", async (req, res) => {
     try {
+      if (!ai) return res.status(503).json({ error: "GEMINI_API_KEY is not configured." });
       const { model, prompt, config } = req.body;
       const operation = await ai.models.generateVideos({ model, prompt, config });
       res.json(operation);
@@ -42,6 +44,7 @@ async function startServer() {
 
   app.post("/api/ai/videoOperation", async (req, res) => {
     try {
+      if (!ai) return res.status(503).json({ error: "GEMINI_API_KEY is not configured." });
       const { operation } = req.body;
       const result = await ai.operations.getVideosOperation({ operation });
       res.json(result);
