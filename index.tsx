@@ -3905,6 +3905,8 @@ const generateAiReportBtn = document.getElementById('generate-ai-report-btn') as
 const aiReportOutput = document.getElementById('ai-report-output');
 const copyAiReportBtn = document.getElementById('copy-ai-report-btn') as HTMLButtonElement | null;
 const copyAiReportStatus = document.getElementById('copy-ai-report-status');
+const aiPilotForm = document.getElementById('ai-pilot-form') as HTMLFormElement | null;
+const aiPilotFormStatus = document.getElementById('ai-pilot-form-status');
 
 if (pricingCta) {
     pricingCta.addEventListener('click', () => {
@@ -3986,6 +3988,37 @@ if (copyAiReportBtn && aiReportOutput) {
                 copyAiReportStatus.classList.remove('hidden');
             }
         }
+    });
+}
+
+if (aiPilotForm) {
+    aiPilotForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const formData = new FormData(aiPilotForm);
+        const email = String(formData.get('email') || '').trim();
+        const company = String(formData.get('company') || '').trim();
+        const fleetSize = String(formData.get('fleetSize') || '').trim();
+        const currentReport = aiReportOutput?.textContent?.trim() || '';
+
+        track('AI Pilot Form Submit', {
+            source: 'ai_report_section',
+            hasFleetSize: fleetSize ? 'yes' : 'no'
+        });
+
+        const subject = 'Pilotaż ADI PRO Ultimate — raport AI dla floty';
+        const body = [
+            `Email: ${email}`,
+            `Firma / flota: ${company}`,
+            `Liczba pojazdów: ${fleetSize || '-'}`,
+            '',
+            'Proszę o kontakt w sprawie 30-dniowego pilotażu technicznego ADI PRO Ultimate.',
+            '',
+            'Raport AI / kontekst:',
+            currentReport || '-'
+        ].join('\n');
+
+        aiPilotFormStatus?.classList.remove('hidden');
+        window.location.href = `mailto:ewelinalesiak7@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     });
 }
 
