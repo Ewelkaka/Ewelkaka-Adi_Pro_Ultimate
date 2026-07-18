@@ -659,6 +659,25 @@
             </div>
         </section>
 
+        <section id="ai-pilot-form-section" class="border border-adi-green/30 bg-gradient-to-r from-adi-green/10 via-black/35 to-adi-cyan/10 rounded-sm p-4 grid grid-cols-1 xl:grid-cols-[0.9fr_1.1fr] gap-4 items-start">
+            <div>
+                <p class="text-[8px] text-adi-green uppercase tracking-[0.4em] mb-2">Pilotaż po raporcie AI</p>
+                <h3 class="text-xl font-black text-white uppercase tracking-tight">Chcesz taki raport dla swojej floty?</h3>
+                <p class="text-[10px] text-gray-300 uppercase tracking-widest mt-2">
+                    Zostaw dane floty, a przygotujemy wiadomość do rozpoczęcia 30-dniowego pilotażu technicznego.
+                </p>
+            </div>
+            <form id="ai-pilot-form" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <input id="ai-pilot-email" name="email" type="email" placeholder="Email" class="bg-black/60 border border-white/10 px-3 py-2 text-[10px] text-white outline-none focus:border-adi-green" required>
+                <input id="ai-pilot-company" name="company" type="text" placeholder="Firma / flota" class="bg-black/60 border border-white/10 px-3 py-2 text-[10px] text-white uppercase outline-none focus:border-adi-cyan" required>
+                <input id="ai-pilot-fleet-size" name="fleetSize" type="text" placeholder="Liczba pojazdów" class="bg-black/60 border border-white/10 px-3 py-2 text-[10px] text-white uppercase outline-none focus:border-adi-gold">
+                <button type="submit" class="console-btn md:col-span-3 py-3 text-[10px] font-black uppercase text-adi-green border-adi-green/40 bg-adi-green/5">
+                    Umów pilotaż
+                </button>
+                <p id="ai-pilot-form-status" class="hidden md:col-span-3 text-[8px] text-adi-green uppercase tracking-widest">Wiadomość pilotażowa przygotowana.</p>
+            </form>
+        </section>
+
         <section id="audience-problems-section" class="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <div class="border border-adi-cyan/25 bg-black/35 rounded-sm p-4">
                 <p class="text-[8px] text-adi-cyan uppercase tracking-[0.4em] mb-2">Dla kogo?</p>
