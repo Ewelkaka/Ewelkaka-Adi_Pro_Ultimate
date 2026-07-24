@@ -1451,17 +1451,24 @@
     </div>
 
     <script type="module" src="/index.tsx"></script>
-    <div id="sticky-sales-cta" class="fixed bottom-0 left-0 right-0 z-[90] bg-black/90 backdrop-blur-md border-t border-adi-gold/30 px-4 py-3 flex flex-col md:flex-row gap-3 md:items-center md:justify-center">
-        <span class="text-[9px] text-adi-gold uppercase tracking-[0.35em] font-black text-center md:text-left">Demo AI dla mikro mobilności</span>
-        <a id="sticky-ai-report-cta" href="#ai-report-section" class="console-btn px-6 py-3 text-[10px] font-black uppercase text-black border-adi-cyan/70 bg-adi-cyan hover:bg-adi-cyan/90">
-            Generuj raport AI
-        </a>
-        <a id="sticky-demo-checkout-cta" href="https://checkout.revolut.com/pay/5b61b4c3-1917-4656-8513-55ae93ee0486" target="_blank" rel="noopener noreferrer" class="console-btn px-6 py-3 text-[10px] font-black uppercase text-black border-adi-gold/70 bg-adi-gold hover:bg-adi-gold/90">
-            Kup demo 999 zł
-        </a>
-        <a id="sticky-lead-cta" href="#lead-form-section" class="console-btn px-6 py-3 text-[10px] font-black uppercase text-adi-cyan border-adi-cyan/50 bg-adi-cyan/10">
-            Zapytaj o wdrożenie
-        </a>
+    <div id="sticky-sales-cta" class="fixed bottom-0 left-0 right-0 z-[90] bg-black/95 backdrop-blur-md border-t border-adi-gold/40 px-4 py-3 shadow-[0_-8px_32px_rgba(255,215,0,0.12)]">
+        <div class="max-w-7xl mx-auto flex flex-col xl:flex-row gap-3 xl:items-center xl:justify-between">
+            <div class="text-center xl:text-left">
+                <span class="block text-[10px] text-adi-gold uppercase tracking-[0.35em] font-black">Zobacz wartość AI dla swojej floty w 60 sekund</span>
+                <span class="block text-[8px] text-gray-500 uppercase tracking-widest mt-1">raport AI → pilotaż → demo 999 zł</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2 w-full xl:w-auto">
+                <a id="sticky-ai-report-cta" href="#ai-report-section" class="console-btn px-5 py-3 text-[10px] font-black uppercase text-black border-adi-cyan/70 bg-adi-cyan hover:bg-adi-cyan/90">
+                    1. Raport AI
+                </a>
+                <a id="sticky-pilot-cta" href="#ai-pilot-form-section" class="console-btn px-5 py-3 text-[10px] font-black uppercase text-black border-adi-green/70 bg-adi-green hover:bg-adi-green/90">
+                    2. Umów pilotaż
+                </a>
+                <a id="sticky-demo-checkout-cta" href="https://checkout.revolut.com/pay/5b61b4c3-1917-4656-8513-55ae93ee0486" target="_blank" rel="noopener noreferrer" class="console-btn px-5 py-3 text-[10px] font-black uppercase text-black border-adi-gold/70 bg-adi-gold hover:bg-adi-gold/90">
+                    3. Kup demo 999 zł
+                </a>
+            </div>
+        </div>
     </div>
 </body>
 </html>
