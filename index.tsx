@@ -3901,6 +3901,7 @@ const pricingCta = document.getElementById('pricing-cta');
 const demoCheckoutCta = document.getElementById('demo-checkout-cta');
 const stickyDemoCheckoutCta = document.getElementById('sticky-demo-checkout-cta');
 const stickyLeadCta = document.getElementById('sticky-lead-cta');
+const stickyPilotCta = document.getElementById('sticky-pilot-cta');
 const heroAiReportCta = document.getElementById('hero-ai-report-cta');
 const stickyAiReportCta = document.getElementById('sticky-ai-report-cta');
 const generateAiReportBtn = document.getElementById('generate-ai-report-btn') as HTMLButtonElement | null;
@@ -3955,6 +3956,12 @@ if (heroAiReportCta) {
 if (stickyAiReportCta) {
     stickyAiReportCta.addEventListener('click', () => {
         track('AI Report CTA Click', { source: 'sticky_cta' });
+    });
+}
+
+if (stickyPilotCta) {
+    stickyPilotCta.addEventListener('click', () => {
+        track('AI Pilot CTA Click', { source: 'sticky_cta' });
     });
 }
 
