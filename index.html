@@ -71,15 +71,24 @@
         body { 
             min-height: 100vh;
             background-color: #000000;
-            background-image: url('https://assets.grok.com/users/caf36103-c016-4e04-aee9-9f71026b3146/generated/4aeeaac3-02ad-4fef-a032-223c27499f99/image.jpg');
-            background-size: cover;
-            background-position: center top;
-            background-attachment: fixed;
             color: #e5e7eb; 
             font-family: 'JetBrains Mono', monospace;
             overflow-x: hidden;
             overflow-y: auto;
             user-select: none;
+        }
+
+        .site-bg-image {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background-image: url('https://assets.grok.com/users/caf36103-c016-4e04-aee9-9f71026b3146/generated/4aeeaac3-02ad-4fef-a032-223c27499f99/image.jpg');
+            background-size: cover;
+            background-position: center top;
+            background-repeat: no-repeat;
+            opacity: 0.62;
+            filter: saturate(1.18) contrast(1.08);
         }
 
         .site-bg-overlay {
@@ -88,9 +97,8 @@
             z-index: 0;
             pointer-events: none;
             background:
-                radial-gradient(circle at 50% 18%, rgba(0, 242, 255, 0.16), transparent 28%),
-                linear-gradient(180deg, rgba(0, 0, 0, 0.70) 0%, rgba(0, 0, 0, 0.84) 42%, rgba(0, 0, 0, 0.92) 100%);
-            backdrop-filter: saturate(1.05) contrast(1.04);
+                radial-gradient(circle at 50% 18%, rgba(0, 242, 255, 0.10), transparent 32%),
+                linear-gradient(180deg, rgba(0, 0, 0, 0.30) 0%, rgba(0, 0, 0, 0.52) 45%, rgba(0, 0, 0, 0.72) 100%);
         }
 
         /* --- CRT & GLOBAL EFFECTS --- */
@@ -389,6 +397,7 @@
         </div>
     </div>
 
+    <div class="site-bg-image"></div>
     <div class="site-bg-overlay"></div>
 
     <div class="crt-container">
@@ -542,7 +551,7 @@
     </div>
 
     <!-- MAIN INTERFACE -->
-    <div id="app-root" class="flex flex-col min-h-screen p-6 gap-6 relative z-10 pb-32">
+    <div id="app-root" class="flex flex-col min-h-screen p-6 gap-6 relative z-20 pb-32">
         <header class="flex justify-between items-end border-b border-white/10 pb-4">
             <div>
                 <h1 class="text-3xl font-black tracking-tighter text-adi-cyan">ADI PRO <span class="text-white">ULTIMATE 2026 SOVEREIGN</span> <span class="text-[11px] text-adi-magenta font-mono tracking-widest ml-3 uppercase opacity-70">OS_v26.55_AIRGAP_PURE</span></h1>
