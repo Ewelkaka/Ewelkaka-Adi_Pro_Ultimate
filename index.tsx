@@ -4039,7 +4039,7 @@ if (aiPilotForm) {
         ].join('\n');
 
         aiPilotFormStatus?.classList.remove('hidden');
-        window.location.href = `mailto:ewelinalesiak7@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.location.href = `mailto:ewelkaka91@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     });
 }
 
@@ -4074,7 +4074,7 @@ if (leadForm) {
             leadThankYou.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
-        window.location.href = `mailto:ewelinalesiak7@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.location.href = `mailto:ewelkaka91@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     });
 }
 
